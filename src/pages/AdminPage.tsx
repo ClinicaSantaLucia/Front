@@ -4,9 +4,9 @@ import { Navigate } from "react-router-dom"
 import Header from "../components/layout/Header"
 import { motion } from "framer-motion"
 import { useEffect, useState } from "react"
-import { databases, Query, ID, storage } from "../lib/appwrite"
+import { databases, Query, storage } from "../lib/appwrite"
 import { Button } from "../components/ui/button.tsx"
-import { Trash2, ArrowUpDown, PlusCircle, FileDown } from "lucide-react"
+import { Trash2, ArrowUpDown,  FileDown } from "lucide-react"
 import { saveAs } from "file-saver"
 
 const databaseId = import.meta.env.VITE_APPWRITE_DATABASE_ID

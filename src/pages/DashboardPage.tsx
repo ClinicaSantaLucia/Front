@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { useUser } from "../hooks/useUser"
 import { databases, Query } from "../lib/appwrite"
-import { FileText, Users, Calendar, PlusCircle, Search, BarChart2, PieChart, UserCheck } from "lucide-react"
+import { FileText, Users, Calendar, BarChart2, PieChart, UserCheck } from "lucide-react"
 import { motion } from "framer-motion"
 import Header from "../components/layout/Header"
 import type { Models } from "appwrite"

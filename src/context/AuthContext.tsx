@@ -5,7 +5,7 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import { account, databases, Query, ID } from "../lib/appwrite"
+import { account, databases, Query } from "../lib/appwrite"
 import { useNavigate } from "react-router-dom"
 
 const databaseId = import.meta.env.VITE_APPWRITE_DATABASE_ID

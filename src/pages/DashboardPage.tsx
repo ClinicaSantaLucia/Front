@@ -42,6 +42,8 @@ export default function DashboardPage() {
     años: Set<number>
     doctores: Set<string>
     generos: Record<Gender, number>
+    operaciones: Record<string, number>
+    operacionesPorDoctor: Record<string, Record<string, number>>
     porAño: Record<number, number>
     porMes: Record<number, number>
     topDoctores: { name: string; value: number }[]
@@ -51,27 +53,53 @@ export default function DashboardPage() {
     años: new Set(),
     doctores: new Set(),
     generos: { masculino: 0, femenino: 0 },
+    operaciones: {}, // 👈 AÑADIDO
+    operacionesPorDoctor: {}, // 👈 AÑADIDO
     porAño: {},
     porMes: {},
     topDoctores: [],
     ultimo: null,
   })
+  
 
   const fetchStats = async () => {
     try {
-      const res = await databases.listDocuments<MedicalDocument>(databaseId, medicalId, [Query.limit(100)])
-      const años = new Set<number>()
+      const allDocs: MedicalDocument[] = []
+      let page = 0
+      const limit = 100
+      let more = true
+      
+      while (more) {
+        const res = await databases.listDocuments<MedicalDocument>(
+          databaseId,
+          medicalId,
+          [Query.limit(limit), Query.offset(page * limit)]
+        )
+        allDocs.push(...res.documents)
+        more = res.documents.length === limit
+        page++
+      }
+            const años = new Set<number>()
       const doctores = new Set<string>()
       const generos: Record<Gender, number> = { masculino: 0, femenino: 0 }
       const porAño: Record<number, number> = {}
       const porMes: Record<number, number> = {}
       const conteoDoctores: Record<string, number> = {}
-      let ultimo: MedicalDocument | null = null
+      const operaciones: Record<string, number> = {}
+const operacionesPorDoctor: Record<string, Record<string, number>> = {}
 
-      res.documents.forEach((doc) => {
-        if (doc.year !== undefined) {
-          años.add(doc.year)
-          porAño[doc.year] = (porAño[doc.year] || 0) + 1
+      let ultimo: MedicalDocument | null = null
+      let yearFromDate: number | null = null
+
+
+      allDocs.forEach((doc) => {
+        if (doc.admission_date) {
+          const parsedDate = new Date(doc.admission_date)
+          if (!isNaN(parsedDate.getTime())) {
+            yearFromDate = parsedDate.getFullYear()
+            años.add(yearFromDate)
+            porAño[yearFromDate] = (porAño[yearFromDate] || 0) + 1
+          }
         }
 
         if (doc.month !== undefined) {
@@ -94,7 +122,20 @@ export default function DashboardPage() {
           }
         }
         
-        
+        // Conteo por operación
+if (doc.operation) {
+  operaciones[doc.operation] = (operaciones[doc.operation] || 0) + 1
+}
+
+// Conteo por doctor → operación
+if (doc.doctor_last && doc.operation) {
+  if (!operacionesPorDoctor[doc.doctor_last]) {
+    operacionesPorDoctor[doc.doctor_last] = {}
+  }
+  operacionesPorDoctor[doc.doctor_last][doc.operation] = 
+    (operacionesPorDoctor[doc.doctor_last][doc.operation] || 0) + 1
+}
+
         
         
         if (doc.doctor_last) {
@@ -114,16 +155,20 @@ export default function DashboardPage() {
         .slice(0, 5)
         .map(([name, value]) => ({ name, value }))
 
-      setStats({
-        totalHistorias: res.total,
-        años,
-        doctores,
-        generos,
-        porAño,
-        porMes,
-        topDoctores,
-        ultimo,
-      })
+        setStats({
+          totalHistorias: allDocs.length,
+          años,
+          doctores,
+          generos,
+          porAño,
+          operaciones,
+operacionesPorDoctor,
+
+          porMes,
+          topDoctores,
+          ultimo,
+        })
+        
     } catch (err) {
       console.error("Error cargando estadísticas:", err)
     }
@@ -149,6 +194,16 @@ export default function DashboardPage() {
     label: new Date(2025, parseInt(mes) - 1).toLocaleDateString("es-PE", { month: "long" }),
     count
   }))
+  const operacionesData = Object.entries(stats.operaciones).map(([name, value]) => ({ name, value }))
+
+const operacionesPorDoctorData = Object.entries(stats.operacionesPorDoctor).flatMap(([doctor, ops]) =>
+  Object.entries(ops).map(([operation, count]) => ({
+    doctor,
+    operation,
+    count
+  }))
+)
+
 
   return (
     <>
@@ -231,15 +286,41 @@ export default function DashboardPage() {
             </ResponsiveContainer>
           </div>
         </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+  <div className="bg-white rounded-xl shadow p-4">
+    <h3 className="text-lg font-semibold text-gray-700 mb-2 flex items-center gap-2">
+      <PieChart /> Pacientes por tipo de operación
+    </h3>
+    <ResponsiveContainer width="100%" height={250}>
+      <RePieChart>
+        <Pie data={operacionesData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80}>
+          {operacionesData.map((_, i) => (
+            <Cell key={i} fill={colores[i % colores.length]} />
+          ))}
+        </Pie>
+        <Legend />
+        <Tooltip />
+      </RePieChart>
+    </ResponsiveContainer>
+  </div>
 
-
-     
-
-      </div>
-    </>
+  <div className="bg-white rounded-xl shadow p-4">
+    <h3 className="text-lg font-semibold text-gray-700 mb-2 flex items-center gap-2">
+      <BarChart2 /> Operaciones por doctor
+    </h3>
+    <ResponsiveContainer width="100%" height={300}>
+      <BarChart data={operacionesPorDoctorData}>
+        <XAxis dataKey="doctor" />
+        <YAxis />
+        <Tooltip />
+        <Legend />
+        <Bar dataKey="count" fill="#475569" name="Cantidad" />
+      </BarChart>
+      </ResponsiveContainer>
+      </div> 
+    </div> 
+  </div> 
+</>
   )
 }
-
-
-
-       
+  

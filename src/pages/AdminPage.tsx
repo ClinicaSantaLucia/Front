@@ -28,7 +28,6 @@ interface MedicalHistory {
   patient_last_name: string
   doctor_first: string
   doctor_last: string
-  condition: string
   amount: number
   created_at: string
   pdf_file_id?: string
@@ -179,7 +178,6 @@ export default function AdminPage() {
                   <tr>
                     <th className="px-4 py-2">Paciente</th>
                     <th className="px-4 py-2">Doctor</th>
-                    <th className="px-4 py-2">Condición</th>
                     <th className="px-4 py-2">Monto</th>
                     <th className="px-4 py-2">Acciones</th>
                   </tr>
@@ -189,8 +187,9 @@ export default function AdminPage() {
                     <tr key={h.$id} className="border-b hover:bg-blue-50">
                       <td className="px-4 py-2 text-gray-800">{h.patient_first_name} {h.patient_last_name}</td>
                       <td className="px-4 py-2 text-gray-700">{h.doctor_first} {h.doctor_last}</td>
-                      <td className="px-4 py-2 text-gray-600">{h.condition}</td>
-                      <td className="px-4 py-2 text-gray-600">S/ {h.amount.toFixed(2)}</td>
+                      <td className="px-4 py-2 text-gray-600">
+  {typeof h.amount === "number" ? `S/ ${h.amount.toFixed(2)}` : "No registrado"}
+</td>
                       <td className="px-4 py-2 space-x-2">
                         <Button
                           size="sm"

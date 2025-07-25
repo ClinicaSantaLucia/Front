@@ -5,6 +5,7 @@ import { Menu, X, LogOut, FileText, LayoutDashboard, Search, ShieldCheck } from 
 import { motion, AnimatePresence } from "framer-motion"
 import clsx from "clsx"
 import { useUser } from "../../hooks/useUser"
+import logo from "../../assets/logo.jpeg"
 
 export default function Header() {
   const navigate = useNavigate()
@@ -54,10 +55,14 @@ export default function Header() {
       <div className="w-full px-4 py-3 flex justify-between items-center">
         {/* Logo a la izquierda */}
         <div className="flex-shrink-0">
-          <Link to="/dashboard" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg">C</div>
-            <span className="text-lg font-semibold text-gray-800">Clínica Santa Lucía</span>
-          </Link>
+        <Link to="/dashboard" className="flex items-center gap-2">
+        <img
+  src={logo}
+  alt="Clínica Santa Lucía"
+  className="h-10 md:h-12 lg:h-14 w-auto object-contain"
+/>
+        </Link>
+
         </div>
 
         {/* Íconos alineados a la derecha */}

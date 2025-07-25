@@ -20,8 +20,12 @@ export default function HistoriasClinicasPage() {
     discharge_date: "",
     doctor_first: "",
     doctor_last: "",
+    especialidad: "",
     patient_first_name: "",
     patient_last_name: "",
+    motivo: "",               
+    cie10: "",               
+    descripcion: "",          
     hc: "",
     room_number: "",
     account_number: "",
@@ -30,7 +34,7 @@ export default function HistoriasClinicasPage() {
     observations: "",
     condition: "Estable",
     document_type: "DNI",
-    document_number: "", // ✅ nuevo campo
+    document_number: "",
     amount: "",
     igv: "",
     cancellation_date: "",
@@ -46,68 +50,87 @@ export default function HistoriasClinicasPage() {
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+    e.preventDefault()
+    setLoading(true)
+
     try {
-      const ingreso = new Date(form.admission_date);
-      const alta = new Date(form.discharge_date);
-      const monto = parseFloat(form.amount);
-      const igv = parseFloat(form.igv);
-  
+      const ingreso = new Date(form.admission_date)
+      const alta = new Date(form.discharge_date)
+      const monto = parseFloat(form.amount)
+      const igv = parseFloat(form.igv)
+
       if (alta < ingreso) {
-        alert("La fecha de alta no puede ser anterior a la de ingreso.");
-        setLoading(false);
-        return;
+        alert("La fecha de alta no puede ser anterior a la de ingreso.")
+        setLoading(false)
+        return
       }
-  
+
       if (!form.patient_first_name || form.patient_first_name.length < 2) {
-        alert("Nombre del paciente inválido.");
-        setLoading(false);
-        return;
+        alert("Nombre del paciente inválido.")
+        setLoading(false)
+        return
       }
-  
+
       if (!form.document_number || form.document_number.length < 6) {
-        alert("Número de documento inválido.");
-        setLoading(false);
-        return;
+        alert("Número de documento inválido.")
+        setLoading(false)
+        return
       }
-  
+
+      if (!form.motivo) {
+        alert("Debes seleccionar el motivo.")
+        setLoading(false)
+        return
+      }
+
+      if (!form.cie10 || form.cie10.length < 3) {
+        alert("Código CIE10 inválido.")
+        setLoading(false)
+        return
+      }
+
+      if (!form.descripcion || form.descripcion.length < 5) {
+        alert("La descripción debe tener al menos 5 caracteres.")
+        setLoading(false)
+        return
+      }
+
       if (monto < 0 || igv < 0) {
-        alert("El monto y el IGV deben ser valores positivos.");
-        setLoading(false);
-        return;
+        alert("El monto y el IGV deben ser positivos.")
+        setLoading(false)
+        return
       }
-  
+
       if (form.pdf && form.pdf.type !== "application/pdf") {
-        alert("El archivo debe ser un PDF válido.");
-        setLoading(false);
-        return;
+        alert("El archivo debe ser un PDF válido.")
+        setLoading(false)
+        return
       }
-  
+
       const existing = await databases.listDocuments(db, collection, [
         Query.equal("document_number", form.document_number),
-      ]);
-  
+      ])
+
       const sameDniDifferentName = existing.documents.find(
         (doc) =>
           doc.patient_first_name !== form.patient_first_name ||
           doc.patient_last_name !== form.patient_last_name
-      );
-  
+      )
+
       if (sameDniDifferentName) {
-        alert("Ya existe una historia con ese DNI pero diferente nombre.");
-        setLoading(false);
-        return;
+        alert("Ya existe una historia con ese DNI pero diferente nombre.")
+        setLoading(false)
+        return
       }
-  
-      let pdfFileId = "";
+
+      let pdfFileId = ""
       if (form.pdf) {
-        const uploaded = await storage.createFile(bucket, ID.unique(), form.pdf);
-        pdfFileId = uploaded.$id;
+        const uploaded = await storage.createFile(bucket, ID.unique(), form.pdf)
+        pdfFileId = uploaded.$id
       }
-  
-      const { pdf, ...formWithoutPdf } = form;
-  
+
+      const { pdf, ...formWithoutPdf } = form
+
       await databases.createDocument(db, collection, ID.unique(), {
         ...formWithoutPdf,
         created_by: user?.user_id,
@@ -115,18 +138,17 @@ export default function HistoriasClinicasPage() {
         pdf_file_id: pdfFileId || undefined,
         amount: monto,
         igv: igv,
-      });
-  
-      setForm({ ...form, record_number: "", pdf: null });
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
+      })
+
+      setForm({ ...form, record_number: "", pdf: null })
+      setSuccess(true)
+      setTimeout(() => setSuccess(false), 3000)
     } catch (err) {
-      console.error(err);
+      console.error(err)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
-  
+  }
 
   return (
     <>
@@ -154,27 +176,54 @@ export default function HistoriasClinicasPage() {
           className="max-w-4xl mx-auto bg-white rounded-2xl shadow-lg p-8 space-y-6"
         >
           <div className="grid sm:grid-cols-2 gap-4">
-            <input name="record_number" required value={form.record_number} onChange={handleChange} placeholder="N° Record" className="input" />
-            <input name="hc" required value={form.hc} onChange={handleChange} placeholder="Código HC" className="input" />
-            <input name="patient_first_name" required value={form.patient_first_name} onChange={handleChange} placeholder="Nombre del paciente" className="input" />
-            <input name="patient_last_name" required value={form.patient_last_name} onChange={handleChange} placeholder="Apellido del paciente" className="input" />
-            <input name="doctor_first" required value={form.doctor_first} onChange={handleChange} placeholder="Nombre del médico" className="input" />
-            <input name="doctor_last" required value={form.doctor_last} onChange={handleChange} placeholder="Apellido del médico" className="input" />
+            <input name="document_number" required value={form.document_number} onChange={handleChange} placeholder="N° de documento" className="input" />
 
             <div className="flex flex-col">
               <label htmlFor="admission_date" className="text-sm text-gray-600 mb-1">Fecha de ingreso</label>
               <input type="date" required name="admission_date" value={form.admission_date} onChange={handleChange} className="input" />
             </div>
+
+            <input name="patient_last_name" required value={form.patient_last_name} onChange={handleChange} placeholder="Apellido del paciente" className="input" />
+            <input name="patient_first_name" required value={form.patient_first_name} onChange={handleChange} placeholder="Nombre del paciente" className="input" />
+
+            <select name="gender" value={form.gender} onChange={handleChange} className="input">
+              <option value="masculino">Masculino</option>
+              <option value="femenino">Femenino</option>
+            </select>
+
+            <input name="doctor_last" required value={form.doctor_last} onChange={handleChange} placeholder="Apellido del médico" className="input" />
+            <input name="doctor_first" required value={form.doctor_first} onChange={handleChange} placeholder="Nombre del médico" className="input" />
+            <input
+  name="especialidad"
+  value={form.especialidad}
+  onChange={handleChange}
+  placeholder="Especialidad del médico"
+  className="input"
+/>
+
+            <select name="motivo" required value={form.motivo} onChange={handleChange} className="input">
+              <option value="">Selecciona motivo</option>
+              <option value="cirugía">Cirugía</option>
+              <option value="tratamiento">Tratamiento</option>
+            </select>
+
+            <input name="cie10" required value={form.cie10} onChange={handleChange} placeholder="Código CIE10" className="input" />
+            <input name="descripcion" required value={form.descripcion} onChange={handleChange} placeholder="Descripción de cirugía o tratamiento" className="input" />
+
+            <input name="record_number" required value={form.record_number} onChange={handleChange} placeholder="N° Record" className="input" />
+
             <div className="flex flex-col">
               <label htmlFor="discharge_date" className="text-sm text-gray-600 mb-1">Fecha de alta</label>
               <input type="date" required name="discharge_date" value={form.discharge_date} onChange={handleChange} className="input" />
             </div>
 
-            <input name="room_number" value={form.room_number} onChange={handleChange} placeholder="Habitación" className="input" />
             <input name="account_number" value={form.account_number} onChange={handleChange} placeholder="N° Cuenta" className="input" />
+            <input name="amount" type="number" value={form.amount} onChange={handleChange} placeholder="Monto" className="input" />
+
+            <input name="hc" value={form.hc} onChange={handleChange} placeholder="Código HC" className="input" />
+            <input name="room_number" value={form.room_number} onChange={handleChange} placeholder="Habitación" className="input" />
             <input name="operation" value={form.operation} onChange={handleChange} placeholder="Cirugía / Operación" className="input" />
             <input name="correlative" value={form.correlative} onChange={handleChange} placeholder="Correlativo" className="input" />
-            <input name="amount" type="number" value={form.amount} onChange={handleChange} placeholder="Monto" className="input" />
             <input name="igv" type="number" value={form.igv} onChange={handleChange} placeholder="IGV" className="input" />
           </div>
 
@@ -186,10 +235,6 @@ export default function HistoriasClinicasPage() {
                 <option key={m}>{m}</option>
               ))}
             </select>
-            <select name="gender" value={form.gender} onChange={handleChange} className="input">
-               <option value="masculino">Masculino</option>
-               <option value="femenino">Femenino</option>
-            </select>
 
             <select name="document_type" value={form.document_type} onChange={handleChange} className="input">
               <option>DNI</option>
@@ -197,9 +242,6 @@ export default function HistoriasClinicasPage() {
               <option>CARNET EXT</option>
             </select>
           </div>
-
-          {/* Número del documento */}
-          <input name="document_number" required value={form.document_number} onChange={handleChange} placeholder="N° de documento" className="input" />
 
           <div className="grid sm:grid-cols-2 gap-4 items-center">
             <input
@@ -221,7 +263,7 @@ export default function HistoriasClinicasPage() {
               animate={{ opacity: 1 }}
               className="text-green-600 font-medium text-center mt-4"
             >
-              Historia registrada correctamente 
+              Historia registrada correctamente
             </motion.p>
           )}
         </motion.form>
@@ -229,3 +271,4 @@ export default function HistoriasClinicasPage() {
     </>
   )
 }
+

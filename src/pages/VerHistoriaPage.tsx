@@ -62,7 +62,6 @@ export default function BuscadorHistoriasPage() {
   const [modoEdicion, setModoEdicion] = useState(false)
   const [limit, setLimit] = useState(20)
   const [offset, setOffset] = useState(0)
-  const [total, setTotal] = useState(0)
 
   
 

@@ -61,6 +61,8 @@ export default function DashboardPage() {
     ultimo: null,
   })
   
+  const [añoSeleccionado, setAñoSeleccionado] = useState<number | null>(null)
+
 
   const fetchStats = async () => {
     try {
@@ -68,7 +70,7 @@ export default function DashboardPage() {
       let page = 0
       const limit = 100
       let more = true
-      
+    
       while (more) {
         const res = await databases.listDocuments<MedicalDocument>(
           databaseId,
@@ -79,104 +81,119 @@ export default function DashboardPage() {
         more = res.documents.length === limit
         page++
       }
-            const años = new Set<number>()
+    
+      const añosDisponibles = new Set<number>()
+      const todosDoctores = new Set<string>()
+allDocs.forEach((doc) => {
+  if (doc.doctor_last) {
+    todosDoctores.add(doc.doctor_last)
+  }
+})
+
+      allDocs.forEach((doc) => {
+        if (doc.admission_date) {
+          const fecha = new Date(doc.admission_date)
+          if (!isNaN(fecha.getTime())) {
+            añosDisponibles.add(fecha.getFullYear())
+          }
+        }
+      })
+    
+      const añoFinal = añoSeleccionado ?? Math.max(...Array.from(añosDisponibles))
+    
+      const docsFiltrados = allDocs.filter((doc) => {
+        if (doc.admission_date) {
+          const fecha = new Date(doc.admission_date)
+          return fecha.getFullYear() === añoFinal
+        }
+        return false
+      })
+    
       const doctores = new Set<string>()
       const generos: Record<Gender, number> = { masculino: 0, femenino: 0 }
       const porAño: Record<number, number> = {}
       const porMes: Record<number, number> = {}
       const conteoDoctores: Record<string, number> = {}
       const operaciones: Record<string, number> = {}
-const operacionesPorDoctor: Record<string, Record<string, number>> = {}
-
+      const operacionesPorDoctor: Record<string, Record<string, number>> = {}
+    
       let ultimo: MedicalDocument | null = null
-      let yearFromDate: number | null = null
+    // Total por año (no depende de filtro)
+allDocs.forEach((doc) => {
+  if (doc.admission_date) {
+    const fecha = new Date(doc.admission_date)
+    const año = fecha.getFullYear()
+    porAño[año] = (porAño[año] || 0) + 1
+  }
+})
 
-
-      allDocs.forEach((doc) => {
+      docsFiltrados.forEach((doc) => {
         if (doc.admission_date) {
           const parsedDate = new Date(doc.admission_date)
-          if (!isNaN(parsedDate.getTime())) {
-            yearFromDate = parsedDate.getFullYear()
-            años.add(yearFromDate)
-            porAño[yearFromDate] = (porAño[yearFromDate] || 0) + 1
-          }
+          const mes = parsedDate.getMonth() + 1
+          porMes[mes] = (porMes[mes] || 0) + 1
         }
-
-        if (doc.month !== undefined) {
-          let mesIndex: number | null = null
-        
-          if (typeof doc.month === "number") {
-            mesIndex = doc.month
-          } else if (typeof doc.month === "string") {
-            const meses = [
-              "enero", "febrero", "marzo", "abril", "mayo", "junio",
-              "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
-            ]
-            const lowerMonth = (doc.month as string).toLowerCase()
-            const idx = meses.findIndex(m => m === lowerMonth)
-            if (idx !== -1) mesIndex = idx + 1
-          }
-        
-          if (mesIndex !== null) {
-            porMes[mesIndex] = (porMes[mesIndex] || 0) + 1
-          }
+    
+        if (doc.operation) {
+          operaciones[doc.operation] = (operaciones[doc.operation] || 0) + 1
         }
-        
-        // Conteo por operación
-if (doc.operation) {
-  operaciones[doc.operation] = (operaciones[doc.operation] || 0) + 1
-}
-
-// Conteo por doctor → operación
-if (doc.doctor_last && doc.operation) {
-  if (!operacionesPorDoctor[doc.doctor_last]) {
-    operacionesPorDoctor[doc.doctor_last] = {}
-  }
-  operacionesPorDoctor[doc.doctor_last][doc.operation] = 
-    (operacionesPorDoctor[doc.doctor_last][doc.operation] || 0) + 1
-}
-
-        
-        
+    
+        if (doc.doctor_last && doc.operation) {
+          if (!operacionesPorDoctor[doc.doctor_last]) {
+            operacionesPorDoctor[doc.doctor_last] = {}
+          }
+          operacionesPorDoctor[doc.doctor_last][doc.operation] =
+            (operacionesPorDoctor[doc.doctor_last][doc.operation] || 0) + 1
+        }
+    
         if (doc.doctor_last) {
           doctores.add(doc.doctor_last)
           conteoDoctores[doc.doctor_last] = (conteoDoctores[doc.doctor_last] || 0) + 1
         }
+    
         if (doc.gender && ["masculino", "femenino"].includes(doc.gender)) {
           generos[doc.gender as Gender]++
         }
+    
         if (!ultimo || new Date(doc.$createdAt) > new Date(ultimo.$createdAt)) {
           ultimo = doc
         }
       })
-
+    
       const topDoctores = Object.entries(conteoDoctores)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 5)
         .map(([name, value]) => ({ name, value }))
-
-        setStats({
-          totalHistorias: allDocs.length,
-          años,
-          doctores,
-          generos,
-          porAño,
-          operaciones,
-operacionesPorDoctor,
-
-          porMes,
-          topDoctores,
-          ultimo,
-        })
-        
+    
+      setStats({
+        totalHistorias: docsFiltrados.length,
+        años: añosDisponibles,
+        doctores: todosDoctores,
+        generos,
+        porAño,
+        porMes,
+        operaciones,
+        operacionesPorDoctor,
+        topDoctores,
+        ultimo,
+      })
+      if (!añoSeleccionado) {
+        const añosArray = Array.from(añosDisponibles)
+        if (añosArray.length > 0) {
+          const añoMasReciente = Math.max(...añosArray)
+          setAñoSeleccionado(añoMasReciente)
+        }
+      }
+      
     } catch (err) {
       console.error("Error cargando estadísticas:", err)
     }
-  }
+  }    
 
   useEffect(() => {
     fetchStats()
-  }, [])
+  }, [añoSeleccionado])
+  
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center text-gray-600">Cargando Dashboard...</div>
@@ -185,7 +202,7 @@ operacionesPorDoctor,
   const cards = [
     { icon: <FileText className="text-yellow-500 w-8 h-8" />, title: "Total historias clínicas", value: stats.totalHistorias },
     { icon: <Calendar className="text-emerald-500 w-8 h-8" />, title: "Años registrados", value: stats.años.size },
-    { icon: <Users className="text-indigo-500 w-8 h-8" />, title: "Doctores diferentes", value: stats.doctores.size },
+    { icon: <Users className="text-indigo-500 w-8 h-8" />, title: "Doctores", value: stats.doctores.size },
   ]
 
   const porAñoData = Object.entries(stats.porAño).map(([año, count]) => ({ year: año, count }))
@@ -220,6 +237,27 @@ const operacionesPorDoctorData = Object.entries(stats.operacionesPorDoctor).flat
             </span>
           </div>
         </motion.div>
+{/* Selector de año */}
+<div className="mb-6">
+
+  <select
+    id="añoSelector"
+    value={añoSeleccionado ?? ""}
+    onChange={(e) => setAñoSeleccionado(parseInt(e.target.value))}
+    className="border border-gray-300 rounded px-3 py-2 text-sm shadow-sm w-full sm:w-64"
+  >
+    <option value="">-- Selecciona un año --</option>
+    {Array.from(stats.años)
+      .sort((a, b) => b - a)
+      .map((año) => (
+        <option key={año} value={año}>
+          {año}
+        </option>
+      ))}
+  </select>
+</div>
+
+
 
         {/* Tarjetas */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
@@ -249,6 +287,9 @@ const operacionesPorDoctorData = Object.entries(stats.operacionesPorDoctor).flat
           </div>
 
           <div className="bg-white rounded-xl shadow p-4">
+          <p className="text-sm text-gray-500 mb-1">
+  Mostrando datos del año: <span className="font-semibold">{añoSeleccionado}</span>
+</p>
             <h3 className="text-lg font-semibold text-gray-700 mb-2 flex items-center gap-2"><PieChart /> Porcentaje por género</h3>
             <ResponsiveContainer width="100%" height={250}>
               <RePieChart>
@@ -262,6 +303,10 @@ const operacionesPorDoctorData = Object.entries(stats.operacionesPorDoctor).flat
           </div>
 
           <div className="bg-white rounded-xl shadow p-4 col-span-1 md:col-span-2">
+          <p className="text-sm text-gray-500 mb-1">
+  Mostrando datos del año: <span className="font-semibold">{añoSeleccionado}</span>
+</p>
+
             <h3 className="text-lg font-semibold text-gray-700 mb-2 flex items-center gap-2"><BarChart2 /> Historias por mes</h3>
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={porMesData}>

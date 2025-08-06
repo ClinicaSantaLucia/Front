@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import {  useState } from "react"
 import { databases, Query } from "../lib/appwrite"
 import { FileText, Calendar, XCircle, Filter, X, Printer, FileDown } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
@@ -17,11 +17,11 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT
 function limpiarDocumento(doc: any) {
   const camposValidos = [
     "year", "month", "gender", "record_number", "admission_date",
-    "discharge_date", "doctor_first", "doctor_last", "hc", "room_number",
+    "discharge_date", "doctor_first", "doctor_last", "hc", 
     "account_number", "operation", "correlative", "observations",
     "condition", "created_by", "pdf_file_id", "ocr_image_id", "ocr_text",
     "created_at", "document_type", "patient_first_name", "patient_last_name",
-    "amount", "igv", "cancellation_date", "document_number",
+    "amount",   "document_number",
     "motivo", "cie10", "descripcion",  "especialidad"
   ]
 
@@ -43,7 +43,6 @@ export default function BuscadorHistoriasPage() {
     patient_first_name: "",
     document_number: "",
     document_type: "",
-    room_number: "",
     operation: "",
     from_date: "",
     to_date: "",
@@ -73,19 +72,25 @@ export default function BuscadorHistoriasPage() {
     setLoading(true)
     try {
       const queries: any[] = []
-
+  
       const addQuery = (key: string, val: string) => {
         if (val?.trim()) queries.push(Query.equal(key, val.trim()))
       }
-
-      if (filtros.year.trim()) queries.push(Query.equal("year", parseInt(filtros.year)))
+  
+      if (filtros.year.trim()) {
+        const year = parseInt(filtros.year)
+        const start = `${year}-01-01`
+        const end = `${year}-12-31`
+        queries.push(Query.greaterThanEqual("admission_date", start))
+        queries.push(Query.lessThanEqual("admission_date", end))
+      }
+  
       addQuery("doctor_last", filtros.doctor_last)
       addQuery("doctor_first", filtros.doctor_first)
       addQuery("patient_last_name", filtros.patient_last_name)
       addQuery("patient_first_name", filtros.patient_first_name)
       addQuery("document_number", filtros.document_number)
       addQuery("document_type", filtros.document_type)
-      addQuery("room_number", filtros.room_number)
       addQuery("operation", filtros.operation)
       addQuery("gender", filtros.gender)
       addQuery("motivo", filtros.motivo)
@@ -93,20 +98,14 @@ export default function BuscadorHistoriasPage() {
       addQuery("descripcion", filtros.descripcion)
       addQuery("account_number", filtros.account_number)
       addQuery("especialidad", filtros.especialidad)
-
-
+  
       if (filtros.from_date) queries.push(Query.greaterThanEqual("admission_date", filtros.from_date))
       if (filtros.to_date) queries.push(Query.lessThanEqual("admission_date", filtros.to_date))
-      
-        if (queries.length === 0) queries.push(Query.limit(limit))
-          else {
-            queries.push(Query.limit(limit))
-            queries.push(Query.offset(offset))
-          }
-          
-      const res = await databases.listDocuments(databaseId, collectionId, 
-        [...queries, Query.limit(limit), Query.offset(offset)]
-      )
+  
+      queries.push(Query.limit(limit))
+      queries.push(Query.offset(offset))
+  
+      const res = await databases.listDocuments(databaseId, collectionId, queries)
       setResultados(res.documents)
     } catch (err) {
       console.error("Error al buscar:", err)
@@ -114,6 +113,7 @@ export default function BuscadorHistoriasPage() {
       setLoading(false)
     }
   }
+  
 
   const exportarExcel = () => {
     const data = resultados.map((r) => ({
@@ -123,7 +123,6 @@ export default function BuscadorHistoriasPage() {
       "Documento Tipo": r.document_type,
       "Documento N°": r.document_number,
       "HC": r.hc,
-      "Habitación": r.room_number,
       "N° Cuenta": r.account_number,
       "Cirugía": r.operation,
       "Correlativo": r.correlative,
@@ -133,10 +132,8 @@ export default function BuscadorHistoriasPage() {
       "Descripción": r.descripcion || "",
       "Observaciones": r.observations || "",
       "Monto": r.amount,
-      "IGV": r.igv,
       "Fecha Ingreso": r.admission_date?.split("T")[0],
       "Fecha Alta": r.discharge_date?.split("T")[0],
-      "Cancelación": r.cancellation_date?.split("T")[0],
       
     }))
   
@@ -148,9 +145,6 @@ export default function BuscadorHistoriasPage() {
   }
   
 
-  useEffect(() => {
-    buscar()
-  }, [limit, offset])
   
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 relative">
@@ -187,7 +181,6 @@ export default function BuscadorHistoriasPage() {
         <input name="patient_last_name" placeholder="Apellido del paciente" value={filtros.patient_last_name} onChange={handleChange} className="input" />
         <input name="document_number" placeholder="N° Documento" value={filtros.document_number} onChange={handleChange} className="input" />
         <input name="document_type" placeholder="Tipo Documento" value={filtros.document_type} onChange={handleChange} className="input" />
-        <input name="room_number" placeholder="Habitación" value={filtros.room_number} onChange={handleChange} className="input" />
         <input name="account_number" placeholder="N° Cuenta" value={filtros.account_number} onChange={handleChange} className="input" />
         <input name="operation" placeholder="Cirugía / Operación" value={filtros.operation} onChange={handleChange} className="input" />
         <input name="motivo" placeholder="Motivo (cirugía / tratamiento)" value={filtros.motivo} onChange={handleChange} className="input" />
@@ -202,8 +195,8 @@ export default function BuscadorHistoriasPage() {
           <option value="femenino">Femenino</option>
         </select>
 
-        <div className="flex flex-wrap gap-2 col-span-2 md:col-span-1">
-          <button onClick={buscar} className="bg-blue-600 text-white px-4 py-2 rounded-md flex items-center gap-1 hover:bg-blue-700">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 gap-2 col-span-2 md:col-span-1">
+        <button onClick={buscar} className="bg-blue-600 text-white px-4 py-2 rounded-md flex items-center gap-1 hover:bg-blue-700">
             <Filter className="w-4 h-4" /> Buscar
           </button>
           <button onClick={exportarExcel} className="bg-green-600 text-white px-4 py-2 rounded-md flex items-center gap-1 hover:bg-green-700">
@@ -212,6 +205,22 @@ export default function BuscadorHistoriasPage() {
           <button onClick={() => window.print()} className="bg-gray-600 text-white px-4 py-2 rounded-md flex items-center gap-1 hover:bg-gray-700">
             <Printer className="w-4 h-4" /> Imprimir
           </button>
+          <button
+  onClick={() => {
+    setFiltros({
+      year: "", doctor_last: "", doctor_first: "", patient_last_name: "",
+      patient_first_name: "", document_number: "", document_type: "",
+      operation: "", from_date: "", to_date: "", gender: "",
+      motivo: "", cie10: "", descripcion: "", account_number: "", especialidad: ""
+    })
+    setResultados([])
+  }}
+  className="bg-red-500 text-white px-4 py-2 rounded-md flex items-center gap-1 hover:bg-red-600"
+>
+  <X className="w-4 h-4" /> Limpiar 
+</button>
+
+
         </div>
       </motion.div>
     
@@ -273,7 +282,6 @@ export default function BuscadorHistoriasPage() {
       <p><strong>Especialidad:</strong> {r.especialidad}</p>
       <p><strong>Documento:</strong> {r.document_type} {r.document_number}</p>
       <p><strong>HC:</strong> {r.hc}</p>
-      <p><strong>Habitación:</strong> {r.room_number}</p>
       <p><strong>Cuenta:</strong> {r.account_number}</p>
       <p><strong>Cirugía:</strong> {r.operation}</p>
       <p><strong>Sexo:</strong> {r.gender}</p>
@@ -282,10 +290,8 @@ export default function BuscadorHistoriasPage() {
       <p><strong>Descripción:</strong> {r.descripcion}</p>
       <p><strong>Observaciones:</strong> {r.observations}</p>
       <p><strong>Monto:</strong> S/ {r.amount}</p>
-      <p><strong>IGV:</strong> S/ {r.igv}</p>
       <p><strong>Ingreso:</strong> {r.admission_date?.split("T")[0]}</p>
       <p><strong>Alta:</strong> {r.discharge_date?.split("T")[0]}</p>
-      <p><strong>Cancelación:</strong> {r.cancellation_date?.split("T")[0]}</p>
     </div>
   ))}
 </div>
@@ -440,13 +446,7 @@ export default function BuscadorHistoriasPage() {
     ) : `S/ ${detalle.amount}`}
   </p>
 
-  <p><strong>IGV:</strong>
-    {modoEdicion ? (
-      <input type="number" value={detalleEditable?.igv || ""} onChange={(e) => setDetalleEditable((prev: any) => ({ ...prev, igv: parseFloat(e.target.value) }))} className="input w-full bg-white border px-2 py-1 rounded mt-1" />
-    ) : `S/ ${detalle.igv}`}
-  </p>
 
-  <p><strong>Cancelación:</strong> {detalle.cancellation_date?.split("T")[0]}</p>
 
   <p className="col-span-2"><strong>Motivo:</strong>
     {modoEdicion ? (

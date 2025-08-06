@@ -6,7 +6,7 @@ import { motion } from "framer-motion"
 import { useEffect, useState } from "react"
 import { databases, Query, storage } from "../lib/appwrite"
 import { Button } from "../components/ui/button.tsx"
-import { Trash2, ArrowUpDown,  FileDown } from "lucide-react"
+import { Trash2, FileDown } from "lucide-react"
 import { saveAs } from "file-saver"
 
 const databaseId = import.meta.env.VITE_APPWRITE_DATABASE_ID
@@ -39,6 +39,7 @@ export default function AdminPage() {
   const [histories, setHistories] = useState<MedicalHistory[]>([])
   const [refreshingUsers, setRefreshingUsers] = useState(false)
   const [refreshingHistories, setRefreshingHistories] = useState(false)
+  const [terminoBusqueda, setTerminoBusqueda] = useState("")
 
   const fetchUsers = async () => {
     setRefreshingUsers(true)
@@ -46,9 +47,21 @@ export default function AdminPage() {
     setUsers(res.documents as unknown as UserProfile[])
     setRefreshingUsers(false)
   }
-  const fetchHistories = async () => {
+
+  const buscarHistories = async (termino: string) => {
+    if (!termino.trim()) {
+      setHistories([])
+      return
+    }
+
     setRefreshingHistories(true)
-    const res = await databases.listDocuments(databaseId, historyCollectionId, [Query.limit(20)])
+
+    const res = await databases.listDocuments(databaseId, historyCollectionId, [
+      Query.equal("document_number", termino)
+      ,
+      Query.limit(50),
+    ])
+
     setHistories(res.documents as unknown as MedicalHistory[])
     setRefreshingHistories(false)
   }
@@ -66,19 +79,18 @@ export default function AdminPage() {
 
   const deleteHistory = async (id: string) => {
     await databases.deleteDocument(databaseId, historyCollectionId, id)
-    fetchHistories()
+    setHistories((prev) => prev.filter((h) => h.$id !== id))
   }
 
   const downloadPDF = async (fileId?: string) => {
     if (!fileId) return
     const response = await storage.getFileDownload(bucketId, fileId)
     saveAs(await response, `historia_${fileId}.pdf`) 
-}
+  }
 
   useEffect(() => {
     if (user?.role === "admin") {
       fetchUsers()
-      fetchHistories()
     }
   }, [user])
 
@@ -108,7 +120,6 @@ export default function AdminPage() {
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-gray-700">Gestión de Usuarios</h2>
             <Button onClick={fetchUsers} disabled={refreshingUsers} variant="outline">
-              <ArrowUpDown className="w-4 h-4 mr-1" />
               {refreshingUsers ? "Actualizando..." : "Actualizar"}
             </Button>
           </div>
@@ -161,12 +172,20 @@ export default function AdminPage() {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.2 }}
         >
-          <div className="flex justify-between items-center mb-4">
+          <div className="mb-4 space-y-2 sm:space-y-0 sm:flex sm:items-center sm:justify-between">
             <h2 className="text-lg font-semibold text-gray-700">Gestión de Historias Clínicas</h2>
-            <Button onClick={fetchHistories} disabled={refreshingHistories} variant="outline">
-              <ArrowUpDown className="w-4 h-4 mr-1" />
-              {refreshingHistories ? "Actualizando..." : "Actualizar"}
-            </Button>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Buscar por DNI o nombre"
+                value={terminoBusqueda}
+                onChange={(e) => setTerminoBusqueda(e.target.value)}
+                className="px-4 py-2 border rounded-md text-sm w-64"
+              />
+              <Button onClick={() => buscarHistories(terminoBusqueda)} disabled={refreshingHistories}>
+                {refreshingHistories ? "Buscando..." : "Buscar"}
+              </Button>
+            </div>
           </div>
 
           {histories.length === 0 ? (
@@ -188,8 +207,8 @@ export default function AdminPage() {
                       <td className="px-4 py-2 text-gray-800">{h.patient_first_name} {h.patient_last_name}</td>
                       <td className="px-4 py-2 text-gray-700">{h.doctor_first} {h.doctor_last}</td>
                       <td className="px-4 py-2 text-gray-600">
-  {typeof h.amount === "number" ? `S/ ${h.amount.toFixed(2)}` : "No registrado"}
-</td>
+                        {typeof h.amount === "number" ? `S/ ${h.amount.toFixed(2)}` : "No registrado"}
+                      </td>
                       <td className="px-4 py-2 space-x-2">
                         <Button
                           size="sm"

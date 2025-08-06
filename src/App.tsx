@@ -9,6 +9,7 @@ const DashboardPage = lazy(() => import("./pages/DashboardPage"))
 const HistoriasClinicasPage = lazy(() => import("./pages/HistoriasClinicasPage"))
 const BuscadorHistoriasPage = lazy(() => import("./pages/VerHistoriaPage"))
 const AdminPage = lazy(() => import("./pages/AdminPage"))
+const HomePage = lazy(() => import("./pages/Homepage"))
 
 const NotFoundPage = () => (
   <div className="flex items-center justify-center min-h-screen text-center bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-white">
@@ -31,7 +32,8 @@ function App() {
       <AuthProvider>
         <Suspense fallback={<Spinner />}>
           <Routes>
-            <Route path="/" element={<LoginPage />} />
+          <Route path="/" element={<HomePage />} />
+<Route path="/login" element={<LoginPage />} />
             <Route
               path="/dashboard"
               element={

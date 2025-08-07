@@ -1,23 +1,12 @@
 import { useEffect, useState } from "react"
 import { useUser } from "../hooks/useUser"
 import { databases, Query } from "../lib/appwrite"
-import { FileText, Users, Calendar, BarChart2, PieChart, UserCheck } from "lucide-react"
+import { FileText, Users, Calendar, BarChart2, PieChart } from "lucide-react"
 import { motion } from "framer-motion"
 import Header from "../components/layout/Header"
 import type { Models } from "appwrite"
+import ReactECharts from "echarts-for-react"
 
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Pie,
-  PieChart as RePieChart,
-  Cell,
-  Legend
-} from "recharts"
 
 const databaseId = import.meta.env.VITE_APPWRITE_DATABASE_ID
 const medicalId = import.meta.env.VITE_APPWRITE_MEDICAL_COLLECTION_ID
@@ -213,14 +202,19 @@ allDocs.forEach((doc) => {
   }))
   const operacionesData = Object.entries(stats.operaciones).map(([name, value]) => ({ name, value }))
 
-const operacionesPorDoctorData = Object.entries(stats.operacionesPorDoctor).flatMap(([doctor, ops]) =>
-  Object.entries(ops).map(([operation, count]) => ({
-    doctor,
-    operation,
-    count
-  }))
-)
+  const operaciones = Array.from(new Set(operacionesData.map((op) => op.name)))
+  const doctores = Object.keys(stats.operacionesPorDoctor)
+  
+const heatmapData: [number, number, number][] = []
 
+doctores.forEach((doctor, y) => {
+  operaciones.forEach((op, x) => {
+    const count = stats.operacionesPorDoctor[doctor]?.[op] || 0
+    heatmapData.push([x, y, count])
+  })
+})
+
+  
 
   return (
     <>
@@ -272,100 +266,248 @@ const operacionesPorDoctorData = Object.entries(stats.operacionesPorDoctor).flat
           ))}
         </div>
 
-        {/* Gráficos */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
-          <div className="bg-white rounded-xl shadow p-4">
-            <h3 className="text-lg font-semibold text-gray-700 mb-2 flex items-center gap-2"><BarChart2 /> Historias por año</h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={porAñoData}>
-                <XAxis dataKey="year" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="count" fill="#475569" />
-                </BarChart>
-            </ResponsiveContainer>
-          </div>
+       {/* Gráficos */}
+<div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
 
-          <div className="bg-white rounded-xl shadow p-4">
-          <p className="text-sm text-gray-500 mb-1">
-  Mostrando datos del año: <span className="font-semibold">{añoSeleccionado}</span>
-</p>
-            <h3 className="text-lg font-semibold text-gray-700 mb-2 flex items-center gap-2"><PieChart /> Porcentaje por género</h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <RePieChart>
-                <Pie data={generoData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80}>
-                  {generoData.map((_, i) => <Cell key={i} fill={colores[i % colores.length]} />)}
-                </Pie>
-                <Legend />
-                <Tooltip />
-              </RePieChart>
-            </ResponsiveContainer>
-          </div>
+{/* Historial por año - ESTIRADO */}
+<div className="bg-white rounded-xl shadow p-4 md:col-span-2">
+  <h3 className="text-lg font-semibold text-gray-700 mb-2 flex items-center gap-2">
+    <BarChart2 /> Historias por año
+  </h3>
+  <ReactECharts
+    style={{ height: 300 }}
+    option={{
+      tooltip: { trigger: "axis" },
+      xAxis: {
+        type: "category",
+        data: porAñoData.map((item) => item.year),
+      },
+      yAxis: {
+        type: "value",
+      },
+      series: [
+        {
+          name: "Historias",
+          type: "bar",
+          data: porAñoData.map((item) => item.count),
+          itemStyle: { color: "#475569" },
+        },
+      ],
+    }}
+  />
+</div>
 
-          <div className="bg-white rounded-xl shadow p-4 col-span-1 md:col-span-2">
-          <p className="text-sm text-gray-500 mb-1">
-  Mostrando datos del año: <span className="font-semibold">{añoSeleccionado}</span>
-</p>
+{/* Historias por mes */}
+<div className="bg-white rounded-xl shadow p-4 col-span-1 md:col-span-2">
+  <p className="text-sm text-gray-500 mb-1">
+    Mostrando datos del año: <span className="font-semibold">{añoSeleccionado}</span>
+  </p>
+  <h3 className="text-lg font-semibold text-gray-700 mb-2 flex items-center gap-2">
+    <BarChart2 /> Historias por mes
+  </h3>
+  <ReactECharts
+    style={{ height: 300 }}
+    option={{
+      tooltip: {
+        trigger: "axis",
+        axisPointer: { type: "shadow" },
+      },
+      xAxis: {
+        type: "category",
+        data: porMesData.map((item) => item.label),
+        axisLabel: {
+          interval: 0,
+          rotate: 25,
+          color: "#334155",
+        },
+      },
+      yAxis: {
+        type: "value",
+        axisLabel: {
+          color: "#334155",
+        },
+      },
+      series: [
+        {
+          name: "Historias",
+          type: "bar",
+          data: porMesData.map((item) => item.count),
+          itemStyle: {
+            color: "#475569",
+            borderRadius: [6, 6, 0, 0],
+          },
+          emphasis: {
+            itemStyle: {
+              color: "#1e293b",
+            },
+          },
+        },
+      ],
+      grid: {
+        left: "3%",
+        right: "4%",
+        bottom: "10%",
+        containLabel: true,
+      },
+    }}
+  />
+</div>
 
-            <h3 className="text-lg font-semibold text-gray-700 mb-2 flex items-center gap-2"><BarChart2 /> Historias por mes</h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={porMesData}>
-                <XAxis dataKey="label" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="count" fill="#475569" />
-                </BarChart>
-            </ResponsiveContainer>
-          </div>
+{/* Género y Top 5 doctores */}
+<div className="grid grid-cols-1 md:grid-cols-2 gap-8 col-span-1 md:col-span-2">
+  {/* Distribución por género */}
+  <div className="bg-white rounded-xl shadow p-4">
+    <h3 className="text-lg font-semibold text-gray-700 mb-2 flex items-center gap-2">
+      <PieChart /> Distribución por género
+    </h3>
+    <ReactECharts
+      style={{ height: 300 }}
+      option={{
+        tooltip: { trigger: "item" },
+        legend: { bottom: 0 },
+        series: [
+          {
+            name: "Género",
+            type: "pie",
+            radius: "60%",
+            center: ["50%", "45%"],
+            data: generoData.map((item, i) => ({
+              value: item.value,
+              name: item.name,
+              itemStyle: { color: colores[i % colores.length] },
+            })),
+            emphasis: {
+              itemStyle: {
+                shadowBlur: 10,
+                shadowOffsetX: 0,
+                shadowColor: "rgba(0, 0, 0, 0.5)",
+              },
+            },
+          },
+        ],
+      }}
+    />
+  </div>
 
-          <div className="bg-white rounded-xl shadow p-4 col-span-1 md:col-span-2">
-            <h3 className="text-lg font-semibold text-gray-700 mb-2 flex items-center gap-2"><UserCheck /> Top 5 doctores</h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <RePieChart>
-                <Pie data={stats.topDoctores} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80}>
-                  {stats.topDoctores.map((_, i) => <Cell key={i} fill={colores[i % colores.length]} />)}
-                </Pie>
-                <Legend />
-                <Tooltip />
-              </RePieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+  {/* Top 5 doctores */}
+  <div className="bg-white rounded-xl shadow p-4">
+    <h3 className="text-lg font-semibold text-gray-700 mb-2 flex items-center gap-2">
+      <PieChart /> Top 5 doctores
+    </h3>
+    <ReactECharts
+      style={{ height: 300 }}
+      option={{
+        tooltip: { trigger: "item" },
+        legend: { bottom: 0 },
+        series: [
+          {
+            name: "Top doctores",
+            type: "pie",
+            radius: "60%",
+            center: ["50%", "45%"],
+            data: stats.topDoctores.map((item, i) => ({
+              value: item.value,
+              name: item.name,
+              itemStyle: { color: colores[i % colores.length] },
+            })),
+            emphasis: {
+              itemStyle: {
+                shadowBlur: 10,
+                shadowOffsetX: 0,
+                shadowColor: "rgba(0, 0, 0, 0.5)",
+              },
+            },
+          },
+        ],
+      }}
+    />
+  </div>
+</div>
+
+</div> 
+
+
+{/* Pacientes por operación y operaciones por doctor */}
+<div className="grid grid-cols-1 md:grid-cols-2 gap-8 col-span-1 md:col-span-2">
+  {/* Pacientes por tipo de operación */}
   <div className="bg-white rounded-xl shadow p-4">
     <h3 className="text-lg font-semibold text-gray-700 mb-2 flex items-center gap-2">
       <PieChart /> Pacientes por tipo de operación
     </h3>
-    <ResponsiveContainer width="100%" height={250}>
-      <RePieChart>
-        <Pie data={operacionesData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80}>
-          {operacionesData.map((_, i) => (
-            <Cell key={i} fill={colores[i % colores.length]} />
-          ))}
-        </Pie>
-        <Legend />
-        <Tooltip />
-      </RePieChart>
-    </ResponsiveContainer>
+    <ReactECharts
+      style={{ height: 300 }}
+      option={{
+        tooltip: { trigger: "item" },
+        legend: { bottom: 0 },
+        series: [
+          {
+            name: "Operaciones",
+            type: "pie",
+            radius: "60%",
+            center: ["50%", "45%"],
+            data: operacionesData.map((item, i) => ({
+              value: item.value,
+              name: item.name,
+              itemStyle: { color: colores[i % colores.length] },
+            })),
+            emphasis: {
+              itemStyle: {
+                shadowBlur: 10,
+                shadowOffsetX: 0,
+                shadowColor: "rgba(0, 0, 0, 0.5)",
+              },
+            },
+          },
+        ],
+      }}
+    />
   </div>
 
+  {/* Operaciones por doctor */}
   <div className="bg-white rounded-xl shadow p-4">
-    <h3 className="text-lg font-semibold text-gray-700 mb-2 flex items-center gap-2">
-      <BarChart2 /> Operaciones por doctor
+    <h3 className="text-lg font-semibold text-gray-700 mb-4 flex items-center gap-2">
+      <BarChart2 /> Operaciones por doctor (barras apiladas)
     </h3>
-    <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={operacionesPorDoctorData}>
-        <XAxis dataKey="doctor" />
-        <YAxis />
-        <Tooltip />
-        <Legend />
-        <Bar dataKey="count" fill="#475569" name="Cantidad" />
-      </BarChart>
-      </ResponsiveContainer>
-      </div> 
-    </div> 
-  </div> 
-</>
-  )
+    <ReactECharts
+      style={{ height: 400 }}
+      option={{
+        tooltip: {
+          trigger: "axis",
+          axisPointer: {
+            type: "shadow",
+          },
+        },
+        legend: { bottom: 0 },
+        grid: {
+          left: "3%",
+          right: "4%",
+          bottom: "10%",
+          containLabel: true,
+        },
+        xAxis: {
+          type: "category",
+          data: doctores,
+          axisLabel: {
+            rotate: 25,
+          },
+        },
+        yAxis: {
+          type: "value",
+        },
+        series: operaciones.map((op, i) => ({
+          name: op,
+          type: "bar",
+          stack: "total",
+          emphasis: { focus: "series" },
+          itemStyle: { color: colores[i % colores.length] },
+          data: doctores.map((doctor) => stats.operacionesPorDoctor[doctor]?.[op] || 0),
+        })),
+      }}
+      />
+      </div>
+      </div> {/* ← cierre del grid “Pacientes / Operaciones por doctor” */}
+    </div> {/* ← cierre del .min-h-screen */}
+  </>
+  );
 }
   

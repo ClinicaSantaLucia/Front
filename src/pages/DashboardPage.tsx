@@ -1,3 +1,8 @@
+
+
+
+
+
 import { useEffect, useState } from "react"
 import { useUser } from "../hooks/useUser"
 import { databases, Query } from "../lib/appwrite"
@@ -466,7 +471,7 @@ doctores.forEach((doctor, y) => {
   {/* Operaciones por doctor */}
   <div className="bg-white rounded-xl shadow p-4">
     <h3 className="text-lg font-semibold text-gray-700 mb-4 flex items-center gap-2">
-      <BarChart2 /> Operaciones por doctor (barras apiladas)
+      <BarChart2 /> Operaciones por doctor 
     </h3>
     <ReactECharts
       style={{ height: 400 }}

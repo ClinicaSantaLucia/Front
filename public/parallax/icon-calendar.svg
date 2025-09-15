@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+<defs>
+
+</defs>
+
+<style>
+  .s {{ stroke:#0ea5e9; stroke-width:2.2; fill:none; stroke-linecap:round; stroke-linejoin:round; }}
+</style>
+
+<rect class="s" x="6" y="10" width="36" height="28" rx="4"/>
+<path class="s" d="M6 18h36M16 6v8M32 6v8"/>
+<circle cx="16" cy="24" r="2" fill="#0ea5e9"/>
+<circle cx="24" cy="24" r="2" fill="#0ea5e9"/>
+<circle cx="32" cy="24" r="2" fill="#0ea5e9"/>
+
+</svg>

@@ -4,6 +4,8 @@ import { useUser } from "../hooks/useUser"
 import { UploadCloud, CheckCircle2 } from "lucide-react"
 import { motion } from "framer-motion"
 import Header from "../components/layout/Header"
+// Hook de autocompletado
+import { useDoctorLookup } from "../hooks/useDoctorLookup"
 
 const db = import.meta.env.VITE_APPWRITE_DATABASE_ID
 const collection = import.meta.env.VITE_APPWRITE_MEDICAL_COLLECTION_ID
@@ -11,6 +13,8 @@ const bucket = import.meta.env.VITE_APPWRITE_BUCKET_ID
 
 export default function HistoriasClinicasPage() {
   const { user } = useUser()
+  const { byLastNameExact } = useDoctorLookup()
+
   const [form, setForm] = useState({
     year: new Date().getFullYear(),
     gender: "masculino",
@@ -23,6 +27,7 @@ export default function HistoriasClinicasPage() {
     patient_first_name: "",
     patient_last_name: "",
     motivo: "",
+    // CIE10 desactivado (se mantiene en estado por compatibilidad, pero no se usa)
     cie10: "",
     descripcion: "",
     account_number: "",
@@ -40,20 +45,54 @@ export default function HistoriasClinicasPage() {
 
   const handleChange = (e: any) => {
     const { name, value, files } = e.target
-    let finalValue = files ? files[0] : value
+    let finalValue: any = files ? files[0] : value
 
-    if (
-      typeof finalValue === "string" &&
-      !["admission_date", "discharge_date", "amount"].includes(name)
-    ) {
+    // Campos que NO deben forzarse a mayúsculas
+    const noUpper = new Set([
+      "admission_date",
+      "discharge_date",
+      "amount",
+      "gender",
+      "document_type",
+      "motivo",
+      // cie10 está desactivado; igual lo ignoramos en envío
+      "cie10",
+    ])
+
+    if (typeof finalValue === "string" && !noUpper.has(name)) {
       finalValue = finalValue.toUpperCase()
     }
 
     const updatedForm: any = { ...form, [name]: finalValue }
+
+    // Copiar número de documento a N° de historia
     if (name === "document_number") {
       updatedForm.record_number = finalValue
     }
+
     setForm(updatedForm)
+  }
+
+  // Autocompletar médico al presionar Enter en doctor_last
+  const handleDoctorLastEnter = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter") return
+    e.preventDefault()
+    const query = form.doctor_last.trim()
+    if (!query) return
+    try {
+      const matches = await byLastNameExact(query)
+      if (Array.isArray(matches) && matches.length > 0) {
+        const d = matches[0] // toma el primer match
+        setForm((prev) => ({
+          ...prev,
+          doctor_last: (d.doctor_last ?? prev.doctor_last ?? "").toString().trim(),
+          doctor_first: (d.doctor_first ?? prev.doctor_first ?? "").toString().trim(),
+          especialidad: (d.especialidad ?? prev.especialidad ?? "").toString().trim(),
+        }))
+      }
+    } catch (err) {
+      console.error("Autocomplete doctor_last error:", err)
+    }
   }
 
   const limpiarFormulario = () => {
@@ -89,17 +128,17 @@ export default function HistoriasClinicasPage() {
     try {
       const ingreso = new Date(form.admission_date)
       const alta = new Date(form.discharge_date)
-      const monto = parseFloat(form.amount)
+      const monto = parseFloat(form.amount || "0")
 
-      if (alta < ingreso) {
+      if (isFinite(ingreso.getTime()) && isFinite(alta.getTime()) && alta < ingreso) {
         alert("La fecha de alta no puede ser anterior a la de ingreso.")
         setLoading(false); return
       }
-      if (!form.patient_first_name || form.patient_first_name.length < 2) {
+      if (!form.patient_first_name || form.patient_first_name.trim().length < 2) {
         alert("Nombre del paciente inválido.")
         setLoading(false); return
       }
-      if (!form.document_number || form.document_number.length < 6) {
+      if (!form.document_number || form.document_number.trim().length < 6) {
         alert("Número de documento inválido.")
         setLoading(false); return
       }
@@ -107,12 +146,11 @@ export default function HistoriasClinicasPage() {
         alert("Debes seleccionar el motivo.")
         setLoading(false); return
       }
-      if (!form.cie10 || form.cie10.length < 3) {
-        alert("Código CIE10 inválido.")
-        setLoading(false); return
-      }
-      if (!form.descripcion || form.descripcion.length < 5) {
-        alert("La descripción debe tener al menos 5 caracteres.")
+      // CIE10 desactivado: sin validación
+
+      // Descripción: relajar validación (permitir < 5). Solo exigimos algo de texto.
+      if (!form.descripcion || form.descripcion.trim().length < 1) {
+        alert("La descripción no puede estar vacía.")
         setLoading(false); return
       }
       if (monto < 0) {
@@ -124,6 +162,7 @@ export default function HistoriasClinicasPage() {
         setLoading(false); return
       }
 
+      // Duplicados por document_number (opcional)
       const existing = await databases.listDocuments(db, collection, [
         Query.equal("document_number", form.document_number),
       ])
@@ -138,19 +177,26 @@ export default function HistoriasClinicasPage() {
         }
       }
 
+      // Subida de PDF
       let pdfFileId = ""
       if (form.pdf) {
         const uploaded = await storage.createFile(bucket, ID.unique(), form.pdf)
         pdfFileId = uploaded.$id
       }
 
-      const { pdf, ...formWithoutPdf } = form
+      // Normalización mínima de doctor_last para asegurar guardado correcto
+      const doctor_last_clean = (form.doctor_last || "").toString().trim().replace(/\s+/g, " ")
+
+      // Construir payload (sin cie10)
+      const { pdf, cie10: _omitCIE10, ...formWithoutPdf } = form
+
       await databases.createDocument(db, collection, ID.unique(), {
         ...formWithoutPdf,
+        doctor_last: doctor_last_clean,
         created_by: user?.user_id,
         created_at: new Date().toISOString(),
         pdf_file_id: pdfFileId || undefined,
-        amount: parseFloat(form.amount),
+        amount: isFinite(monto) ? monto : 0,
       })
 
       limpiarFormulario()
@@ -208,9 +254,9 @@ export default function HistoriasClinicasPage() {
                         onChange={handleChange}
                         className={inputBase}
                       >
-                        <option>DNI</option>
-                        <option>PASAPORTE</option>
-                        <option>CARNET EXT</option>
+                        <option value="DNI">DNI</option>
+                        <option value="PASAPORTE">PASAPORTE</option>
+                        <option value="CARNET EXT">CARNET EXT</option>
                       </select>
                     </div>
 
@@ -290,6 +336,8 @@ export default function HistoriasClinicasPage() {
                         required
                         value={form.doctor_last}
                         onChange={handleChange}
+                        onKeyDown={handleDoctorLastEnter}
+                        placeholder="Apellidos (Enter para autocompletar)"
                         className={inputBase}
                       />
                     </div>
@@ -362,16 +410,20 @@ export default function HistoriasClinicasPage() {
                         <option value="TRATAMIENTO">Tratamiento</option>
                       </select>
                     </div>
+
+                    {/* CIE10 desactivado */}
                     <div className="flex flex-col">
-                      <label className={labelBase}>Código CIE10</label>
+                      <label className={labelBase}>Código CIE10 (desactivado)</label>
                       <input
                         name="cie10"
-                        required
                         value={form.cie10}
-                        onChange={handleChange}
-                        className={inputBase}
+                        onChange={() => {}}
+                        disabled
+                        placeholder="(No requerido / no se guarda)"
+                        className={`${inputBase} disabled:opacity-60`}
                       />
                     </div>
+
                     <div className="flex flex-col sm:col-span-2">
                       <label className={labelBase}>Descripción</label>
                       <input
@@ -379,6 +431,7 @@ export default function HistoriasClinicasPage() {
                         required
                         value={form.descripcion}
                         onChange={handleChange}
+                        placeholder="Ej.: COLELAP, APTV1, etc."
                         className={inputBase}
                       />
                     </div>

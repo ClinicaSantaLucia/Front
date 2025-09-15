@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 700">
+  <defs>
+    <radialGradient id="g1" cx="30%" cy="35%" r="40%">
+      <stop offset="0" stop-color="#38bdf8" stop-opacity=".7"/>
+      <stop offset="1" stop-color="#38bdf8" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g2" cx="70%" cy="60%" r="45%">
+      <stop offset="0" stop-color="#60a5fa" stop-opacity=".6"/>
+      <stop offset="1" stop-color="#60a5fa" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="20"/>
+    </filter>
+  </defs>
+  <rect width="1000" height="700" fill="none"/>
+  <g filter="url(#soft)">
+    <circle cx="250" cy="220" r="240" fill="url(#g1)"/>
+    <circle cx="720" cy="420" r="280" fill="url(#g2)"/>
+  </g>
+</svg>

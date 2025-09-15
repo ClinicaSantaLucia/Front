@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800">
+  <defs>
+    <linearGradient id="contour" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#38bdf8" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#60a5fa" stop-opacity=".2"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="url(#contour)" stroke-width="2">
+    <path d="M0,100 C 150,40 600,180 1200,140" opacity="0.35"/>
+<path d="M0,150 C 160,70 615,205 1200,190" opacity="0.38"/>
+<path d="M0,200 C 170,100 630,230 1200,240" opacity="0.41"/>
+<path d="M0,250 C 180,130 645,255 1200,290" opacity="0.44"/>
+<path d="M0,300 C 190,160 660,280 1200,340" opacity="0.47"/>
+<path d="M0,350 C 200,190 675,305 1200,390" opacity="0.50"/>
+<path d="M0,400 C 210,220 690,330 1200,440" opacity="0.53"/>
+<path d="M0,450 C 220,250 705,355 1200,490" opacity="0.56"/>
+<path d="M0,500 C 230,280 720,380 1200,540" opacity="0.59"/>
+<path d="M0,550 C 240,310 735,405 1200,590" opacity="0.62"/>
+<path d="M0,600 C 250,340 750,430 1200,640" opacity="0.65"/>
+<path d="M0,650 C 260,370 765,455 1200,690" opacity="0.68"/>
+
+  </g>
+</svg>

@@ -1,12 +1,12 @@
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { databases, Query } from "../lib/appwrite"
-import { FileText, Calendar, XCircle, Filter, X, Printer, FileDown, Save, PencilLine } from "lucide-react"
+import { FileText, Calendar, XCircle, Filter, X, Printer, FileDown, Save, PencilLine, ChevronLeft, ChevronRight, ArrowUpDown } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import Header from "../components/layout/Header"
 import * as XLSX from "xlsx"
 import { saveAs } from "file-saver"
 import { toast } from "sonner"
-import { Button } from "../components/ui/button" // solo visual, no cambia lógica
+import { Button } from "../components/ui/button"
 
 const databaseId = import.meta.env.VITE_APPWRITE_DATABASE_ID
 const collectionId = import.meta.env.VITE_APPWRITE_MEDICAL_COLLECTION_ID
@@ -19,68 +19,124 @@ function limpiarDocumento(doc: any) {
     "year","month","gender","record_number","admission_date","discharge_date","doctor_first","doctor_last","hc",
     "account_number","operation","correlative","observations","condition","created_by","pdf_file_id","ocr_image_id",
     "ocr_text","created_at","document_type","patient_first_name","patient_last_name","amount","document_number",
-    "motivo","cie10","descripcion","especialidad"
+    "motivo","descripcion","especialidad"
   ]
   const limpio: any = {}
   for (const campo of camposValidos) if (campo in doc) limpio[campo] = doc[campo]
   return limpio
 }
 
+// util: intersección de fechas (yyyy-mm-dd), devuelve [start?, end?]
+function intersectDates(aStart?: string, aEnd?: string, bStart?: string, bEnd?: string): [string | undefined, string | undefined] {
+  const maxStart = [aStart, bStart].filter(Boolean).sort() .slice(-1)[0] // mayor de los starts por orden lexicográfico ISO
+  const minEnd   = [aEnd,   bEnd  ].filter(Boolean).sort()[0]           // menor de los ends
+  if (maxStart && minEnd && maxStart > minEnd) return [undefined, undefined] // vacío
+  return [maxStart, minEnd]
+}
+
 export default function BuscadorHistoriasPage() {
   const [filtros, setFiltros] = useState({
-    year: "", doctor_last: "", doctor_first: "", patient_last_name: "",
-    patient_first_name: "", document_number: "", document_type: "",
-    operation: "", from_date: "", to_date: "", gender: "", motivo: "",
-    cie10: "", descripcion: "", account_number: "", especialidad: "",
+    year: "",
+    doctor_last: "",
+    doctor_first: "",
+    patient_last_name: "",
+    patient_first_name: "",
+    document_number: "",
+    document_type: "",
+    operation: "",
+    from_date: "",
+    to_date: "",
+    gender: "",
+    motivo: "",
+    descripcion: "",
+    account_number: "",
+    especialidad: "",
   })
+
   const [resultados, setResultados] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [detalle, setDetalle] = useState<any | null>(null)
   const [detalleEditable, setDetalleEditable] = useState<any | null>(null)
   const [modoEdicion, setModoEdicion] = useState(false)
+
   const [limit, setLimit] = useState(20)
   const [offset, setOffset] = useState(0)
+  const [totalFiltrado, setTotalFiltrado] = useState(0)
+  const [totalGeneral, setTotalGeneral] = useState<number | null>(null)
+
+  const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc")
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFiltros({ ...filtros, [e.target.name]: e.target.value })
+    setOffset(0)
   }
+
+  // Cargar total general una sola vez
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await databases.listDocuments(databaseId, collectionId, [Query.limit(1)])
+        setTotalGeneral(res.total)
+      } catch (err) {
+        console.error("No se pudo obtener el total general:", err)
+      }
+    })()
+  }, [])
 
   const buscar = async () => {
     setLoading(true)
     try {
       const queries: any[] = []
-      const addQuery = (key: string, val: string) => { if (val?.trim()) queries.push(Query.equal(key, val.trim())) }
 
+      // --- Fechas: combinar año y rango (intersección) ---
+      let yearStart: string | undefined
+      let yearEnd: string | undefined
       if (filtros.year.trim()) {
-        const year = parseInt(filtros.year)
-        const start = `${year}-01-01`
-        const end = `${year}-12-31`
-        queries.push(Query.greaterThanEqual("admission_date", start))
-        queries.push(Query.lessThanEqual("admission_date", end))
+        const y = Math.max(2000, parseInt(filtros.year, 10) || 0) // piso 2000
+        yearStart = `${y}-01-01`
+        yearEnd = `${y}-12-31`
       }
 
-      addQuery("doctor_last", filtros.doctor_last)
-      addQuery("doctor_first", filtros.doctor_first)
-      addQuery("patient_last_name", filtros.patient_last_name)
-      addQuery("patient_first_name", filtros.patient_first_name)
-      addQuery("document_number", filtros.document_number)
-      addQuery("document_type", filtros.document_type)
-      addQuery("operation", filtros.operation)
-      addQuery("gender", filtros.gender)
-      addQuery("motivo", filtros.motivo)
-      addQuery("cie10", filtros.cie10)
-      addQuery("descripcion", filtros.descripcion)
-      addQuery("account_number", filtros.account_number)
-      addQuery("especialidad", filtros.especialidad)
+      // Sanitizar rango manual y corregir si está invertido
+      let from = filtros.from_date || undefined
+      let to = filtros.to_date || undefined
+      if (from && to && from > to) [from, to] = [to, from]
 
-      if (filtros.from_date) queries.push(Query.greaterThanEqual("admission_date", filtros.from_date))
-      if (filtros.to_date) queries.push(Query.lessThanEqual("admission_date", filtros.to_date))
+      const [start, end] = intersectDates(yearStart, yearEnd, from, to)
+      if (start) queries.push(Query.greaterThanEqual("admission_date", start))
+      if (end)   queries.push(Query.lessThanEqual("admission_date", end))
 
+      // --- Texto: apellidos/nombres parciales con fulltext ---
+      const pushSearch = (field: string, val: string) => {
+        const v = val.trim()
+        if (v) queries.push(Query.search(field, v))
+      }
+      pushSearch("doctor_last", filtros.doctor_last)
+      pushSearch("doctor_first", filtros.doctor_first)
+      pushSearch("patient_last_name", filtros.patient_last_name)
+      pushSearch("patient_first_name", filtros.patient_first_name)
+      pushSearch("descripcion", filtros.descripcion)
+      pushSearch("especialidad", filtros.especialidad)
+
+      // --- Igualdad exacta donde aplica ---
+      const addEq = (key: string, val: string) => { if (val.trim()) queries.push(Query.equal(key, val.trim())) }
+      addEq("document_number", filtros.document_number)
+      addEq("document_type", filtros.document_type)
+      addEq("operation", filtros.operation)
+      addEq("gender", filtros.gender)
+      addEq("motivo", filtros.motivo)
+      addEq("account_number", filtros.account_number)
+
+      // Orden por fecha
+      queries.push(sortOrder === "desc" ? Query.orderDesc("admission_date") : Query.orderAsc("admission_date"))
+
+      // Paginación
       queries.push(Query.limit(limit))
       queries.push(Query.offset(offset))
 
       const res = await databases.listDocuments(databaseId, collectionId, queries)
       setResultados(res.documents)
+      setTotalFiltrado(res.total)
     } catch (err) {
       console.error("Error al buscar:", err)
     } finally {
@@ -88,25 +144,37 @@ export default function BuscadorHistoriasPage() {
     }
   }
 
+  // auto-buscar cuando cambien limit/offset/sort
+  useEffect(() => {
+    buscar()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [limit, offset, sortOrder])
+
+  // Cálculo de rango mostrado
+  const rango = useMemo(() => {
+    const start = resultados.length ? offset + 1 : 0
+    const end = offset + resultados.length
+    return { start, end }
+  }, [offset, resultados])
+
   const exportarExcel = () => {
     const data = resultados.map((r) => ({
-      "Nombre Paciente": `${r.patient_first_name} ${r.patient_last_name}`,
-      "Nombre Médico": `${r.doctor_first} ${r.doctor_last}`,
+      "Nombre Paciente": `${r.patient_first_name ?? ""} ${r.patient_last_name ?? ""}`.trim(),
+      "Nombre Médico": `${r.doctor_first ?? ""} ${r.doctor_last ?? ""}`.trim(),
       "Especialidad": r.especialidad || "",
-      "Documento Tipo": r.document_type,
-      "Documento N°": r.document_number,
-      "HC": r.hc,
-      "N° Cuenta": r.account_number,
-      "Cirugía": r.operation,
-      "Correlativo": r.correlative,
-      "Sexo": r.gender,
+      "Documento Tipo": r.document_type || "",
+      "Documento N°": r.document_number || "",
+      "HC": r.hc || "",
+      "N° Cuenta": r.account_number || "",
+      "Cirugía": r.operation || "",
+      "Sexo": r.gender || "",
       "Motivo": r.motivo || "",
-      "CIE10": r.cie10 || "",
+      // CIE10 eliminado
       "Descripción": r.descripcion || "",
       "Observaciones": r.observations || "",
-      "Monto": r.amount,
-      "Fecha Ingreso": r.admission_date?.split("T")[0],
-      "Fecha Alta": r.discharge_date?.split("T")[0],
+      "Monto": r.amount ?? "",
+      "Ingreso": r.admission_date?.split("T")[0] ?? "",
+      "Alta": r.discharge_date?.split("T")[0] ?? "",
     }))
     const ws = XLSX.utils.json_to_sheet(data)
     const wb = XLSX.utils.book_new()
@@ -132,6 +200,12 @@ export default function BuscadorHistoriasPage() {
               Buscador de Historias Clínicas
             </motion.h1>
             <p className="text-slate-500 text-sm">Filtra, exporta e imprime tus registros clínicos.</p>
+            <p className="text-slate-500 text-xs mt-1">
+              {rango.start > 0 ? `Mostrando ${rango.start}–${rango.end} de ${totalFiltrado}` : `0 resultados`}
+              {typeof totalGeneral === "number" && (
+                <> · Total general: {totalGeneral}</>
+              )}
+            </p>
           </div>
           <div className="flex gap-2">
             <Button
@@ -153,7 +227,7 @@ export default function BuscadorHistoriasPage() {
         </div>
       </section>
 
-      {/* FILTROS - card premium */}
+      {/* FILTROS */}
       <motion.section
         className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6"
         initial={{ opacity: 0, y: 6 }}
@@ -162,13 +236,29 @@ export default function BuscadorHistoriasPage() {
       >
         <div className="bg-white/80 backdrop-blur rounded-2xl border border-slate-200/60 shadow-sm p-5">
           <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            <input name="year" type="number" placeholder="Año" value={filtros.year}
+            <input
+              name="year"
+              type="number"
+              min={2000}
+              placeholder="Año (≥ 2000)"
+              value={filtros.year}
               onChange={handleChange}
-              className="input rounded-lg border border-slate-300 bg-white/70 focus:ring-2 focus:ring-sky-500 focus:border-sky-500" />
+              className="input rounded-lg border border-slate-300 bg-white/70 focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+            />
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as "asc" | "desc")}
+              className="input rounded-lg border border-slate-300 bg-white/70 text-gray-700 focus:ring-2 focus:ring-sky-500"
+              title="Orden por fecha de ingreso"
+            >
+              <option value="desc">Recientes primero</option>
+              <option value="asc">Antiguos primero</option>
+            </select>
+
             <input name="doctor_first" placeholder="Nombre del médico" value={filtros.doctor_first}
               onChange={handleChange}
               className="input rounded-lg border border-slate-300 bg-white/70 focus:ring-2 focus:ring-sky-500" />
-            <input name="doctor_last" placeholder="Apellido del médico" value={filtros.doctor_last}
+            <input name="doctor_last" placeholder="Apellido del médico (parcial)" value={filtros.doctor_last}
               onChange={handleChange}
               className="input rounded-lg border border-slate-300 bg-white/70 focus:ring-2 focus:ring-sky-500" />
             <input name="especialidad" placeholder="Especialidad del médico" value={filtros.especialidad}
@@ -178,9 +268,10 @@ export default function BuscadorHistoriasPage() {
             <input name="patient_first_name" placeholder="Nombre del paciente" value={filtros.patient_first_name}
               onChange={handleChange}
               className="input rounded-lg border border-slate-300 bg-white/70 focus:ring-2 focus:ring-sky-500" />
-            <input name="patient_last_name" placeholder="Apellido del paciente" value={filtros.patient_last_name}
+            <input name="patient_last_name" placeholder="Apellido del paciente (parcial)" value={filtros.patient_last_name}
               onChange={handleChange}
               className="input rounded-lg border border-slate-300 bg-white/70 focus:ring-2 focus:ring-sky-500" />
+
             <input name="document_number" placeholder="N° Documento" value={filtros.document_number}
               onChange={handleChange}
               className="input rounded-lg border border-slate-300 bg-white/70 focus:ring-2 focus:ring-sky-500" />
@@ -194,14 +285,12 @@ export default function BuscadorHistoriasPage() {
             <input name="operation" placeholder="Cirugía / Operación" value={filtros.operation}
               onChange={handleChange}
               className="input rounded-lg border border-slate-300 bg-white/70 focus:ring-2 focus:ring-sky-500" />
+
             <input name="motivo" placeholder="Motivo (cirugía / tratamiento)" value={filtros.motivo}
               onChange={handleChange}
               className="input rounded-lg border border-slate-300 bg-white/70 focus:ring-2 focus:ring-sky-500" />
-            <input name="cie10" placeholder="Código CIE10" value={filtros.cie10}
-              onChange={handleChange}
-              className="input rounded-lg border border-slate-300 bg-white/70 focus:ring-2 focus:ring-sky-500" />
 
-            <input name="descripcion" placeholder="Descripción" value={filtros.descripcion}
+            <input name="descripcion" placeholder="Descripción (parcial)" value={filtros.descripcion}
               onChange={handleChange}
               className="input rounded-lg border border-slate-300 bg-white/70 focus:ring-2 focus:ring-sky-500" />
 
@@ -211,6 +300,7 @@ export default function BuscadorHistoriasPage() {
             <input name="to_date" type="date" value={filtros.to_date}
               onChange={handleChange}
               className="input rounded-lg border border-slate-300 bg-white/70 focus:ring-2 focus:ring-sky-500" />
+
             <select name="gender" value={filtros.gender}
               onChange={handleChange}
               className="input rounded-lg border border-slate-300 bg-white/70 text-gray-600 focus:ring-2 focus:ring-sky-500"
@@ -225,17 +315,28 @@ export default function BuscadorHistoriasPage() {
               <Button onClick={buscar} className="bg-sky-600 hover:bg-sky-700 text-white">
                 <Filter className="w-4 h-4 mr-2" /> Buscar
               </Button>
-              
-
               <Button
                 onClick={() => {
                   setFiltros({
-                    year: "", doctor_last: "", doctor_first: "", patient_last_name: "",
-                    patient_first_name: "", document_number: "", document_type: "",
-                    operation: "", from_date: "", to_date: "", gender: "",
-                    motivo: "", cie10: "", descripcion: "", account_number: "", especialidad: ""
+                    year: "",
+                    doctor_last: "",
+                    doctor_first: "",
+                    patient_last_name: "",
+                    patient_first_name: "",
+                    document_number: "",
+                    document_type: "",
+                    operation: "",
+                    from_date: "",
+                    to_date: "",
+                    gender: "",
+                    motivo: "",
+                    descripcion: "",
+                    account_number: "",
+                    especialidad: "",
                   })
+                  setOffset(0)
                   setResultados([])
+                  setTotalFiltrado(0)
                 }}
                 className="bg-rose-500 hover:bg-rose-600 text-white"
               >
@@ -248,6 +349,31 @@ export default function BuscadorHistoriasPage() {
 
       {/* RESULTADOS */}
       <section className="px-4 sm:px-6 lg:px-8 mt-10 pb-40 max-w-7xl mx-auto">
+        {/* Controles de paginación */}
+        <div className="mb-4 flex items-center justify-end gap-2 text-sm text-slate-600">
+          <Button
+            variant="outline"
+            className="h-8"
+            disabled={offset === 0}
+            onClick={() => setOffset((o) => Math.max(0, o - limit))}
+            title="Anterior"
+          >
+            <ChevronLeft className="w-4 h-4 mr-1" /> Anterior
+          </Button>
+          <Button
+            variant="outline"
+            className="h-8"
+            disabled={offset + limit >= totalFiltrado}
+            onClick={() => setOffset((o) => o + limit)}
+            title="Siguiente"
+          >
+            Siguiente <ChevronRight className="w-4 h-4 ml-1" />
+          </Button>
+          <span className="hidden sm:inline-flex items-center gap-1 ml-2">
+            <ArrowUpDown className="w-4 h-4" /> Orden: {sortOrder === "desc" ? "Recientes" : "Antiguos"}
+          </span>
+        </div>
+
         {loading ? (
           // Skeleton grid
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -335,7 +461,7 @@ export default function BuscadorHistoriasPage() {
             <p><strong>Cirugía:</strong> {r.operation}</p>
             <p><strong>Sexo:</strong> {r.gender}</p>
             <p><strong>Motivo:</strong> {r.motivo}</p>
-            <p><strong>CIE10:</strong> {r.cie10}</p>
+            {/* CIE10 removido */}
             <p><strong>Descripción:</strong> {r.descripcion}</p>
             <p><strong>Observaciones:</strong> {r.observations}</p>
             <p><strong>Monto:</strong> S/ {r.amount}</p>
@@ -508,8 +634,8 @@ export default function BuscadorHistoriasPage() {
                     {modoEdicion ? (
                       <input
                         type="number"
-                        value={detalleEditable?.amount || ""}
-                        onChange={(e) => setDetalleEditable((prev: any) => ({ ...prev, amount: parseFloat(e.target.value) }))}
+                        value={detalleEditable?.amount ?? ""}
+                        onChange={(e) => setDetalleEditable((prev: any) => ({ ...prev, amount: e.target.value === "" ? "" : parseFloat(e.target.value) }))}
                         className="w-full border border-gray-300 rounded px-3 py-2 mt-2 focus:outline-none focus:ring-2 focus:ring-sky-500"
                       />
                     ) : `S/ ${detalle.amount}`}
@@ -526,16 +652,7 @@ export default function BuscadorHistoriasPage() {
                     ) : detalle.motivo}
                   </p>
 
-                  <p className="col-span-2">
-                    <strong>CIE10:</strong>
-                    {modoEdicion ? (
-                      <input
-                        value={detalleEditable?.cie10 || ""}
-                        onChange={(e) => setDetalleEditable((prev: any) => ({ ...prev, cie10: e.target.value }))}
-                        className="w-full border border-gray-300 rounded px-3 py-2 mt-2 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                      />
-                    ) : detalle.cie10}
-                  </p>
+                  {/* CIE10 removido del modal */}
 
                   <p className="col-span-2">
                     <strong>Descripción:</strong>
@@ -600,7 +717,7 @@ export default function BuscadorHistoriasPage() {
       </AnimatePresence>
 
       {/* Selector de límite flotante */}
-      <div className="fixed bottom-3 right-4 z-50 print:hidden">
+      <div className="fixed bottom-3 right-4 z-50 print:hidden flex items-center gap-2">
         <select
           value={limit}
           onChange={(e) => { setLimit(parseInt(e.target.value)); setOffset(0) }}

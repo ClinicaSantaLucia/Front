@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <g fill="#38bdf8" opacity=".85">
+    <path d="M200 40l6 16 16 6-16 6-6 16-6-16-16-6 16-6 6-16z"/>
+    <path d="M320 120l4 12 12 4-12 4-4 12-4-12-12-4 12-4 4-12z" opacity=".7"/>
+    <path d="M80 160l3 9 9 3-9 3-3 9-3-9-9-3 9-3 3-9z" opacity=".6"/>
+    <circle cx="300" cy="300" r="3" />
+    <circle cx="120" cy="300" r="2.5" opacity=".7"/>
+  </g>
+</svg>

@@ -28,10 +28,19 @@ function limpiarDocumento(doc: any) {
 
 // util: intersección de fechas (yyyy-mm-dd), devuelve [start?, end?]
 function intersectDates(aStart?: string, aEnd?: string, bStart?: string, bEnd?: string): [string | undefined, string | undefined] {
-  const maxStart = [aStart, bStart].filter(Boolean).sort() .slice(-1)[0] // mayor de los starts por orden lexicográfico ISO
+  const maxStart = [aStart, bStart].filter(Boolean).sort().slice(-1)[0] // mayor de los starts (ISO)
   const minEnd   = [aEnd,   bEnd  ].filter(Boolean).sort()[0]           // menor de los ends
   if (maxStart && minEnd && maxStart > minEnd) return [undefined, undefined] // vacío
   return [maxStart, minEnd]
+}
+
+// Helpers de fecha para rangos con hora (fin incluyente)
+function toISODateStart(d: string) { return d.length === 10 ? `${d}T00:00:00.000Z` : d }
+function nextDayISO(d: string) {
+  if (d.length !== 10) return d
+  const dt = new Date(`${d}T00:00:00.000Z`)
+  dt.setUTCDate(dt.getUTCDate() + 1)
+  return dt.toISOString().slice(0, 10) + "T00:00:00.000Z"
 }
 
 export default function BuscadorHistoriasPage() {
@@ -103,8 +112,10 @@ export default function BuscadorHistoriasPage() {
       if (from && to && from > to) [from, to] = [to, from]
 
       const [start, end] = intersectDates(yearStart, yearEnd, from, to)
-      if (start) queries.push(Query.greaterThanEqual("admission_date", start))
-      if (end)   queries.push(Query.lessThanEqual("admission_date", end))
+      // Inicio incluyente
+      if (start) queries.push(Query.greaterThanEqual("admission_date", toISODateStart(start)))
+      // Fin incluyente: usamos "< nextDay"
+      if (end) queries.push(Query.lessThan("admission_date", nextDayISO(end)))
 
       // --- Texto: apellidos/nombres parciales con fulltext ---
       const pushSearch = (field: string, val: string) => {
@@ -116,7 +127,7 @@ export default function BuscadorHistoriasPage() {
       pushSearch("patient_last_name", filtros.patient_last_name)
       pushSearch("patient_first_name", filtros.patient_first_name)
       pushSearch("descripcion", filtros.descripcion)
-      pushSearch("especialidad", filtros.especialidad)
+      // ⚠️ NO usar search en especialidad (es exacto por índice Key)
 
       // --- Igualdad exacta donde aplica ---
       const addEq = (key: string, val: string) => { if (val.trim()) queries.push(Query.equal(key, val.trim())) }
@@ -126,6 +137,7 @@ export default function BuscadorHistoriasPage() {
       addEq("gender", filtros.gender)
       addEq("motivo", filtros.motivo)
       addEq("account_number", filtros.account_number)
+      addEq("especialidad", filtros.especialidad)
 
       // Orden por fecha
       queries.push(sortOrder === "desc" ? Query.orderDesc("admission_date") : Query.orderAsc("admission_date"))

@@ -19,7 +19,7 @@ type MedicalDocument = Models.Document & {
   doctor_last?: string
   doctor_first?: string
   gender?: string
-  operation?: string // existe en la BD, pero **no** se usa para agrupar
+  operation?: string
   descripcion?: string
   observations?: string
   patient_first_name: string
@@ -76,9 +76,7 @@ export default function DashboardPage() {
   })
 
   const [añoSeleccionado, setAñoSeleccionado] = useState<number | null>(null)
-
-  // NUEVO: control para Top-N en el gráfico de doctores
-  const [topN, setTopN] = useState<number>(25) // 10, 20, 50 o 0 = todos
+  const [topN, setTopN] = useState<number>(25) // 10, 20, 25, 50 o 0 = todos
 
   const fetchStats = async () => {
     try {
@@ -98,7 +96,7 @@ export default function DashboardPage() {
         page++
       }
 
-      // Años disponibles a partir de admission_date
+      // Años disponibles
       const añosDisponibles = new Set<number>()
       allDocs.forEach((doc) => {
         const d = normStr(doc.admission_date)
@@ -108,7 +106,6 @@ export default function DashboardPage() {
         }
       })
 
-      // Si no hay año seleccionado, escoge el más reciente (si existe)
       if (!añoSeleccionado) {
         if (añosDisponibles.size > 0) {
           const maxYear = Math.max(...Array.from(añosDisponibles))
@@ -144,7 +141,7 @@ export default function DashboardPage() {
       const operacionesPorDoctor: Record<string, Record<string, number>> = {}
       let ultimo: MedicalDocument | null = null
 
-      // Totales por año (dataset completo)
+      // Totales por año
       allDocs.forEach((doc) => {
         const d = normStr(doc.admission_date)
         if (d) {
@@ -156,7 +153,7 @@ export default function DashboardPage() {
         }
       })
 
-      // Agregados (filtrados por añoFinal cuando existe)
+      // Agregados por año filtrado
       docsFiltrados.forEach((doc) => {
         const d = normStr(doc.admission_date)
         if (d) {
@@ -268,8 +265,6 @@ export default function DashboardPage() {
 
   // ---- Config adaptativa para "Operaciones por doctor" ----
   const muchosDoctores = doctoresOrdenados.length > 10
-
-  // Alto dinámico según filas visibles (modo horizontal)
   const rowHeight = 26
   const chartHeight = muchosDoctores ? Math.min(120 + doctoresOrdenados.length * rowHeight, 1400) : 420
 
@@ -292,7 +287,6 @@ export default function DashboardPage() {
         data: doctoresOrdenados,
         axisLabel: {
           interval: 0,
-          // Mantén una sola línea por etiqueta y trunca con "…"
           width: 140,
           overflow: "truncate",
           ellipsis: "…",
@@ -316,11 +310,22 @@ export default function DashboardPage() {
     ? { left: 160, right: 24, bottom: 24, top: 20, containLabel: true }
     : { left: "3%", right: "4%", bottom: "14%", top: 20, containLabel: true }
 
+  // ---- Config para "Pacientes por tipo de operación" (BARRA HORIZONTAL) ----
+  const muchasOps = operacionesData.length > 12
+  const opsRowHeight = 26
+  const opsChartHeight = muchasOps ? Math.min(120 + operacionesData.length * opsRowHeight, 1400) : 420
+  const opsDataZoom = muchasOps
+    ? [
+        { type: "inside", yAxisIndex: 0, start: 0, end: 100 },
+        { type: "slider", yAxisIndex: 0, start: 0, end: 100, right: 8 },
+      ]
+    : []
+
   // ---- Keys para remount limpio ----
   const keyAnual = `anual-${porAñoData.map(x => x.year).join("|")}`
   const keyMensual = `mensual-${añoSeleccionado ?? "all"}-${porMesData.map(x => x.count).join(",")}`
   const keyGenero = `genero-${generoData.map(x => `${x.name}:${x.value}`).join("|")}`
-  const keyPieOps = `pieops-${añoSeleccionado ?? "all"}-${operacionesOrdenadas.join("|")}`
+  const keyOpsBar = `opsbar-${añoSeleccionado ?? "all"}-${operacionesOrdenadas.join("|")}`
   const keyStackOps = `stack-${añoSeleccionado ?? "all"}-${topN}-${operacionesOrdenadas.join("|")}-${doctoresOrdenados.join("|")}`
   const keyTopDocs = `topdocs-${stats.topDoctores.map(d => d.name).join("|")}`
 
@@ -512,34 +517,42 @@ export default function DashboardPage() {
 
         {/* Pacientes por operación y Operaciones por doctor */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 col-span-1 md:col-span-2">
+          {/* Pacientes por tipo de operación — BARRA HORIZONTAL */}
           <div className="bg-white rounded-xl shadow p-4">
             <h3 className="text-lg font-semibold text-gray-700 mb-2 flex items-center gap-2">
-              <PieChart /> Pacientes por tipo de operación
+              <BarChart2 /> Pacientes por tipo de operación
             </h3>
             <ReactECharts
-              key={keyPieOps}
+              key={keyOpsBar}
               notMerge={true}
-              style={{ height: 300 }}
+              style={{ height: opsChartHeight }}
               option={{
-                tooltip: { trigger: "item" },
-                legend: { bottom: 0, type: "scroll" },
+                tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+                grid: { left: 220, right: 24, top: 20, bottom: 24, containLabel: true },
+                xAxis: { type: "value" },
+                yAxis: {
+                  type: "category",
+                  data: operacionesOrdenadas,
+                  axisLabel: {
+                    interval: 0,
+                    width: 200,
+                    overflow: "truncate",
+                    ellipsis: "…",
+                    fontSize: 11,
+                    margin: 8,
+                  },
+                },
+                dataZoom: opsDataZoom,
                 series: [
                   {
-                    name: "Operaciones",
-                    type: "pie",
-                    radius: "60%",
-                    center: ["50%", "45%"],
-                    avoidLabelOverlap: true,
-                    label: { show: false },
-                    labelLine: { show: false },
-                    data: operacionesData.map((item, i) => ({
-                      value: item.value,
-                      name: item.name,
-                      itemStyle: { color: colores[i % colores.length] },
-                    })),
-                    emphasis: {
-                      itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: "rgba(0,0,0,0.5)" },
+                    name: "Pacientes",
+                    type: "bar",
+                    data: operacionesData.map((o) => o.value),
+                    label: { show: true, position: "right" },
+                    itemStyle: {
+                      color: (params: any) => colores[params.dataIndex % colores.length],
                     },
+                    barCategoryGap: "30%",
                   },
                 ],
               }}

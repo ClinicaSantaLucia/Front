@@ -53,6 +53,7 @@ export default function DashboardPage() {
 
   const [stats, setStats] = useState<{
     totalHistorias: number
+    totalHistoriasGlobal: number
     años: Set<number>
     doctores: Set<string>
     generos: Record<Gender, number>
@@ -64,6 +65,7 @@ export default function DashboardPage() {
     ultimo: MedicalDocument | null
   }>({
     totalHistorias: 0,
+    totalHistoriasGlobal: 0,
     años: new Set(),
     doctores: new Set(),
     generos: { masculino: 0, femenino: 0 },
@@ -141,7 +143,7 @@ export default function DashboardPage() {
       const operacionesPorDoctor: Record<string, Record<string, number>> = {}
       let ultimo: MedicalDocument | null = null
 
-      // Totales por año
+      // Totales por año (global)
       allDocs.forEach((doc) => {
         const d = normStr(doc.admission_date)
         if (d) {
@@ -195,6 +197,7 @@ export default function DashboardPage() {
 
       setStats({
         totalHistorias: docsFiltrados.length,
+        totalHistoriasGlobal: allDocs.length, // NUEVO: total de todos los años
         años: añosDisponibles,
         doctores: todosDoctores,
         generos,
@@ -365,17 +368,18 @@ export default function DashboardPage() {
         </div>
 
         {/* Tarjetas */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
           {[
             { icon: <FileText className="text-yellow-500 w-8 h-8" />, title: "Total historias clínicas", value: stats.totalHistorias },
             { icon: <Calendar className="text-emerald-500 w-8 h-8" />, title: "Años registrados", value: stats.años.size },
             { icon: <Users className="text-indigo-500 w-8 h-8" />, title: "Doctores", value: stats.doctores.size },
+            { icon: <FileText className="text-sky-500 w-8 h-8" />, title: "Total histórico de historias", value: stats.totalHistoriasGlobal }, // NUEVA TARJETA
           ].map((card, index) => (
             <motion.div
               key={index}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: index * 0.2 }}
+              transition={{ delay: index * 0.15 }}
               whileHover={{ scale: 1.03 }}
               className="bg-white shadow-lg rounded-2xl p-6 flex items-center gap-4"
             >

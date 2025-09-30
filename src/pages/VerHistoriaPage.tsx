@@ -26,15 +26,13 @@ function limpiarDocumento(doc: any) {
   return limpio
 }
 
-// util: intersección de fechas (yyyy-mm-dd), devuelve [start?, end?]
 function intersectDates(aStart?: string, aEnd?: string, bStart?: string, bEnd?: string): [string | undefined, string | undefined] {
-  const maxStart = [aStart, bStart].filter(Boolean).sort().slice(-1)[0] // mayor de los starts (ISO)
-  const minEnd   = [aEnd,   bEnd  ].filter(Boolean).sort()[0]           // menor de los ends
-  if (maxStart && minEnd && maxStart > minEnd) return [undefined, undefined] // vacío
+  const maxStart = [aStart, bStart].filter(Boolean).sort().slice(-1)[0]
+  const minEnd   = [aEnd,   bEnd  ].filter(Boolean).sort()[0]
+  if (maxStart && minEnd && maxStart > minEnd) return [undefined, undefined]
   return [maxStart, minEnd]
 }
 
-// Helpers de fecha para rangos con hora (fin incluyente)
 function toISODateStart(d: string) { return d.length === 10 ? `${d}T00:00:00.000Z` : d }
 function nextDayISO(d: string) {
   if (d.length !== 10) return d
@@ -80,7 +78,6 @@ export default function BuscadorHistoriasPage() {
     setOffset(0)
   }
 
-  // Cargar total general una sola vez
   useEffect(() => {
     (async () => {
       try {
@@ -97,27 +94,22 @@ export default function BuscadorHistoriasPage() {
     try {
       const queries: any[] = []
 
-      // --- Fechas: combinar año y rango (intersección) ---
       let yearStart: string | undefined
       let yearEnd: string | undefined
       if (filtros.year.trim()) {
-        const y = Math.max(2000, parseInt(filtros.year, 10) || 0) // piso 2000
+        const y = Math.max(2000, parseInt(filtros.year, 10) || 0)
         yearStart = `${y}-01-01`
         yearEnd = `${y}-12-31`
       }
 
-      // Sanitizar rango manual y corregir si está invertido
       let from = filtros.from_date || undefined
       let to = filtros.to_date || undefined
       if (from && to && from > to) [from, to] = [to, from]
 
       const [start, end] = intersectDates(yearStart, yearEnd, from, to)
-      // Inicio incluyente
       if (start) queries.push(Query.greaterThanEqual("admission_date", toISODateStart(start)))
-      // Fin incluyente: usamos "< nextDay"
       if (end) queries.push(Query.lessThan("admission_date", nextDayISO(end)))
 
-      // --- Texto: apellidos/nombres parciales con fulltext ---
       const pushSearch = (field: string, val: string) => {
         const v = val.trim()
         if (v) queries.push(Query.search(field, v))
@@ -127,9 +119,7 @@ export default function BuscadorHistoriasPage() {
       pushSearch("patient_last_name", filtros.patient_last_name)
       pushSearch("patient_first_name", filtros.patient_first_name)
       pushSearch("descripcion", filtros.descripcion)
-      // ⚠️ NO usar search en especialidad (es exacto por índice Key)
 
-      // --- Igualdad exacta donde aplica ---
       const addEq = (key: string, val: string) => { if (val.trim()) queries.push(Query.equal(key, val.trim())) }
       addEq("document_number", filtros.document_number)
       addEq("document_type", filtros.document_type)
@@ -139,10 +129,8 @@ export default function BuscadorHistoriasPage() {
       addEq("account_number", filtros.account_number)
       addEq("especialidad", filtros.especialidad)
 
-      // Orden por fecha
       queries.push(sortOrder === "desc" ? Query.orderDesc("admission_date") : Query.orderAsc("admission_date"))
 
-      // Paginación
       queries.push(Query.limit(limit))
       queries.push(Query.offset(offset))
 
@@ -156,13 +144,10 @@ export default function BuscadorHistoriasPage() {
     }
   }
 
-  // auto-buscar cuando cambien limit/offset/sort
   useEffect(() => {
     buscar()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [limit, offset, sortOrder])
 
-  // Cálculo de rango mostrado
   const rango = useMemo(() => {
     const start = resultados.length ? offset + 1 : 0
     const end = offset + resultados.length
@@ -181,7 +166,6 @@ export default function BuscadorHistoriasPage() {
       "Cirugía": r.operation || "",
       "Sexo": r.gender || "",
       "Motivo": r.motivo || "",
-      // CIE10 eliminado
       "Descripción": r.descripcion || "",
       "Observaciones": r.observations || "",
       "Monto": r.amount ?? "",
@@ -198,8 +182,6 @@ export default function BuscadorHistoriasPage() {
   return (
     <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white via-slate-50 to-white text-gray-800">
       <Header />
-
-      {/* Título + acciones */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
           <div>
@@ -239,7 +221,6 @@ export default function BuscadorHistoriasPage() {
         </div>
       </section>
 
-      {/* FILTROS */}
       <motion.section
         className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6"
         initial={{ opacity: 0, y: 6 }}
@@ -287,9 +268,17 @@ export default function BuscadorHistoriasPage() {
             <input name="document_number" placeholder="N° Documento" value={filtros.document_number}
               onChange={handleChange}
               className="input rounded-lg border border-slate-300 bg-white/70 focus:ring-2 focus:ring-sky-500" />
-            <input name="document_type" placeholder="Tipo Documento" value={filtros.document_type}
+            <select
+              name="document_type"
+              value={filtros.document_type}
               onChange={handleChange}
-              className="input rounded-lg border border-slate-300 bg-white/70 focus:ring-2 focus:ring-sky-500" />
+              className="input rounded-lg border border-slate-300 bg-white/70 text-gray-600 focus:ring-2 focus:ring-sky-500"
+            >
+              <option value="">Tipo de documento</option>
+              <option value="DNI">DNI</option>
+              <option value="PASAPORTE">Pasaporte</option>
+              <option value="CARNET EXT">Carnet de Extranjería</option>
+            </select>
 
             <input name="account_number" placeholder="N° Cuenta" value={filtros.account_number}
               onChange={handleChange}
@@ -322,7 +311,6 @@ export default function BuscadorHistoriasPage() {
               <option value="femenino">Femenino</option>
             </select>
 
-            {/* Acciones filtros */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 gap-2 col-span-2 md:col-span-1">
               <Button onClick={buscar} className="bg-sky-600 hover:bg-sky-700 text-white">
                 <Filter className="w-4 h-4 mr-2" /> Buscar
@@ -359,9 +347,7 @@ export default function BuscadorHistoriasPage() {
         </div>
       </motion.section>
 
-      {/* RESULTADOS */}
       <section className="px-4 sm:px-6 lg:px-8 mt-10 pb-40 max-w-7xl mx-auto">
-        {/* Controles de paginación */}
         <div className="mb-4 flex items-center justify-end gap-2 text-sm text-slate-600">
           <Button
             variant="outline"
@@ -387,7 +373,6 @@ export default function BuscadorHistoriasPage() {
         </div>
 
         {loading ? (
-          // Skeleton grid
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {[...Array(6)].map((_, i) => (
               <div key={i} className="rounded-2xl border border-slate-200/60 bg-white p-6 shadow-sm">
@@ -459,7 +444,6 @@ export default function BuscadorHistoriasPage() {
         )}
       </section>
 
-      {/* Versión para impresión */}
       <div className="hidden print:block px-10 pt-10 text-black">
         <h2 className="text-2xl font-bold mb-4 text-center">Historias Clínicas</h2>
         {resultados.map((r) => (
@@ -473,7 +457,6 @@ export default function BuscadorHistoriasPage() {
             <p><strong>Cirugía:</strong> {r.operation}</p>
             <p><strong>Sexo:</strong> {r.gender}</p>
             <p><strong>Motivo:</strong> {r.motivo}</p>
-            {/* CIE10 removido */}
             <p><strong>Descripción:</strong> {r.descripcion}</p>
             <p><strong>Observaciones:</strong> {r.observations}</p>
             <p><strong>Monto:</strong> S/ {r.amount}</p>
@@ -483,7 +466,6 @@ export default function BuscadorHistoriasPage() {
         ))}
       </div>
 
-      {/* Modal Detalle / Edición */}
       <AnimatePresence>
         {detalle && (
           <motion.div
@@ -494,7 +476,6 @@ export default function BuscadorHistoriasPage() {
               className="bg-white rounded-2xl max-w-2xl w-full shadow-xl relative max-h-[85vh] overflow-y-auto border border-slate-200/60"
               initial={{ scale: 0.97, y: 8 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.97, y: 8 }}
             >
-              {/* Header modal */}
               <div className="sticky top-0 z-10 bg-gradient-to-r from-slate-50 to-white border-b border-slate-200/60 rounded-t-2xl p-4 flex items-center justify-between">
                 <h2 className="text-xl font-semibold text-slate-800">
                   {detalle.patient_last_name}, {detalle.patient_first_name}
@@ -519,10 +500,8 @@ export default function BuscadorHistoriasPage() {
                 </div>
               </div>
 
-              {/* Contenido modal */}
               <div className="p-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-gray-800">
-                  {/* Médico */}
                   <p className="col-span-2">
                     <strong>Médico:</strong>
                     {modoEdicion ? (
@@ -556,7 +535,6 @@ export default function BuscadorHistoriasPage() {
                     ) : (detalle.especialidad)}
                   </p>
 
-                  {/* Sexo */}
                   <p>
                     <strong>Sexo:</strong>
                     {modoEdicion ? (
@@ -664,8 +642,6 @@ export default function BuscadorHistoriasPage() {
                     ) : detalle.motivo}
                   </p>
 
-                  {/* CIE10 removido del modal */}
-
                   <p className="col-span-2">
                     <strong>Descripción:</strong>
                     {modoEdicion ? (
@@ -689,7 +665,6 @@ export default function BuscadorHistoriasPage() {
                   </p>
                 </div>
 
-                {/* Footer modal */}
                 <div className="sticky bottom-0 pt-4 mt-6 bg-gradient-to-t from-white to-white/60">
                   {modoEdicion && (
                     <Button
@@ -728,7 +703,6 @@ export default function BuscadorHistoriasPage() {
         )}
       </AnimatePresence>
 
-      {/* Selector de límite flotante */}
       <div className="fixed bottom-3 right-4 z-50 print:hidden flex items-center gap-2">
         <select
           value={limit}

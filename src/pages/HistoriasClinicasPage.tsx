@@ -4,7 +4,6 @@ import { useUser } from "../hooks/useUser"
 import { UploadCloud, CheckCircle2 } from "lucide-react"
 import { motion } from "framer-motion"
 import Header from "../components/layout/Header"
-// Hook de autocompletado
 import { useDoctorLookup } from "../hooks/useDoctorLookup"
 
 const db = import.meta.env.VITE_APPWRITE_DATABASE_ID
@@ -27,7 +26,6 @@ export default function HistoriasClinicasPage() {
     patient_first_name: "",
     patient_last_name: "",
     motivo: "",
-    // CIE10 desactivado (se mantiene en estado por compatibilidad, pero no se usa)
     cie10: "",
     descripcion: "",
     account_number: "",
@@ -46,8 +44,6 @@ export default function HistoriasClinicasPage() {
   const handleChange = (e: any) => {
     const { name, value, files } = e.target
     let finalValue: any = files ? files[0] : value
-
-    // Campos que NO deben forzarse a mayúsculas
     const noUpper = new Set([
       "admission_date",
       "discharge_date",
@@ -55,9 +51,28 @@ export default function HistoriasClinicasPage() {
       "gender",
       "document_type",
       "motivo",
-      // cie10 está desactivado; igual lo ignoramos en envío
       "cie10",
     ])
+
+    if (name === "document_number") {
+      if (form.document_type === "DNI") {
+        finalValue = String(finalValue ?? "").replace(/\D+/g, "").slice(0, 8)
+      }
+    }
+
+    if (name === "document_type") {
+      const nextType = String(finalValue)
+      if (nextType === "DNI") {
+        const dn = String(form.document_number ?? "").replace(/\D+/g, "").slice(0, 8)
+        setForm((prev) => ({
+          ...prev,
+          document_type: nextType,
+          document_number: dn,
+          record_number: dn,
+        }))
+        return
+      }
+    }
 
     if (typeof finalValue === "string" && !noUpper.has(name)) {
       finalValue = finalValue.toUpperCase()
@@ -65,7 +80,6 @@ export default function HistoriasClinicasPage() {
 
     const updatedForm: any = { ...form, [name]: finalValue }
 
-    // Copiar número de documento a N° de historia
     if (name === "document_number") {
       updatedForm.record_number = finalValue
     }
@@ -73,7 +87,6 @@ export default function HistoriasClinicasPage() {
     setForm(updatedForm)
   }
 
-  // Autocompletar médico al presionar Enter en doctor_last
   const handleDoctorLastEnter = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== "Enter") return
     e.preventDefault()
@@ -82,7 +95,7 @@ export default function HistoriasClinicasPage() {
     try {
       const matches = await byLastNameExact(query)
       if (Array.isArray(matches) && matches.length > 0) {
-        const d = matches[0] // toma el primer match
+        const d = matches[0]
         setForm((prev) => ({
           ...prev,
           doctor_last: (d.doctor_last ?? prev.doctor_last ?? "").toString().trim(),
@@ -138,17 +151,14 @@ export default function HistoriasClinicasPage() {
         alert("Nombre del paciente inválido.")
         setLoading(false); return
       }
-      if (!form.document_number || form.document_number.trim().length < 6) {
-        alert("Número de documento inválido.")
+      if (!form.document_number || (form.document_type === "DNI" ? !/^\d{8}$/.test(form.document_number) : form.document_number.trim().length < 1)) {
+        alert(form.document_type === "DNI" ? "El DNI debe tener exactamente 8 dígitos." : "Número de documento inválido.")
         setLoading(false); return
       }
       if (!form.motivo) {
         alert("Debes seleccionar el motivo.")
         setLoading(false); return
       }
-      // CIE10 desactivado: sin validación
-
-      // Descripción: relajar validación (permitir < 5). Solo exigimos algo de texto.
       if (!form.descripcion || form.descripcion.trim().length < 1) {
         alert("La descripción no puede estar vacía.")
         setLoading(false); return
@@ -162,7 +172,6 @@ export default function HistoriasClinicasPage() {
         setLoading(false); return
       }
 
-      // Duplicados por document_number (opcional)
       const existing = await databases.listDocuments(db, collection, [
         Query.equal("document_number", form.document_number),
       ])
@@ -177,17 +186,14 @@ export default function HistoriasClinicasPage() {
         }
       }
 
-      // Subida de PDF
       let pdfFileId = ""
       if (form.pdf) {
         const uploaded = await storage.createFile(bucket, ID.unique(), form.pdf)
         pdfFileId = uploaded.$id
       }
 
-      // Normalización mínima de doctor_last para asegurar guardado correcto
       const doctor_last_clean = (form.doctor_last || "").toString().trim().replace(/\s+/g, " ")
 
-      // Construir payload (sin cie10)
       const { pdf, cie10: _omitCIE10, ...formWithoutPdf } = form
 
       await databases.createDocument(db, collection, ID.unique(), {
@@ -209,10 +215,8 @@ export default function HistoriasClinicasPage() {
     }
   }
 
-  // estilos reutilizables (solo UI)
   const inputBase =
-    "w-full rounded-lg border border-slate-300 bg-white/70 px-3 py-2 text-slate-800 placeholder:text-slate-400 " +
-    "focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition"
+    "w-full rounded-lg border border-slate-300 bg-white/70 px-3 py-2 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition"
 
   const labelBase = "text-sm font-medium text-slate-600 mb-1"
 
@@ -222,7 +226,6 @@ export default function HistoriasClinicasPage() {
       <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white via-slate-50 to-white">
         <main className="px-4 sm:px-6 lg:px-8 py-10">
           <div className="max-w-5xl mx-auto">
-            {/* Título */}
             <motion.div
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -233,7 +236,6 @@ export default function HistoriasClinicasPage() {
               <p className="text-slate-500 text-sm">Completa los campos y adjunta el PDF si aplica.</p>
             </motion.div>
 
-            {/* Card Formulario */}
             <motion.form
               onSubmit={handleSubmit}
               initial={{ opacity: 0, y: 8 }}
@@ -242,7 +244,6 @@ export default function HistoriasClinicasPage() {
               className="bg-white/80 backdrop-blur rounded-2xl border border-slate-200/60 shadow-sm p-6"
             >
               <div className="space-y-8">
-                {/* Sección: Identificación */}
                 <section>
                   <h2 className="text-base font-semibold text-slate-700 mb-3">Identificación</h2>
                   <div className="grid sm:grid-cols-2 gap-4">
@@ -267,6 +268,8 @@ export default function HistoriasClinicasPage() {
                         required
                         value={form.document_number}
                         onChange={handleChange}
+                        maxLength={form.document_type === "DNI" ? 8 : 30}
+                        inputMode={form.document_type === "DNI" ? "numeric" : "text"}
                         className={inputBase}
                       />
                     </div>
@@ -298,7 +301,6 @@ export default function HistoriasClinicasPage() {
                   </div>
                 </section>
 
-                {/* Sección: Paciente */}
                 <section className="pt-4 border-t border-slate-200/70">
                   <h2 className="text-base font-semibold text-slate-700 mb-3">Datos del paciente</h2>
                   <div className="grid sm:grid-cols-2 gap-4">
@@ -325,7 +327,6 @@ export default function HistoriasClinicasPage() {
                   </div>
                 </section>
 
-                {/* Sección: Médico */}
                 <section className="pt-4 border-t border-slate-200/70">
                   <h2 className="text-base font-semibold text-slate-700 mb-3">Datos del médico</h2>
                   <div className="grid sm:grid-cols-2 gap-4">
@@ -363,7 +364,6 @@ export default function HistoriasClinicasPage() {
                   </div>
                 </section>
 
-                {/* Sección: Fechas y estancia */}
                 <section className="pt-4 border-t border-slate-200/70">
                   <h2 className="text-base font-semibold text-slate-700 mb-3">Fechas y estancia</h2>
                   <div className="grid sm:grid-cols-2 gap-4">
@@ -392,7 +392,6 @@ export default function HistoriasClinicasPage() {
                   </div>
                 </section>
 
-                {/* Sección: Detalles clínicos */}
                 <section className="pt-4 border-t border-slate-200/70">
                   <h2 className="text-base font-semibold text-slate-700 mb-3">Detalles clínicos</h2>
                   <div className="grid sm:grid-cols-2 gap-4">
@@ -411,7 +410,6 @@ export default function HistoriasClinicasPage() {
                       </select>
                     </div>
 
-                    {/* CIE10 desactivado */}
                     <div className="flex flex-col">
                       <label className={labelBase}>Código CIE10 (desactivado)</label>
                       <input
@@ -447,7 +445,6 @@ export default function HistoriasClinicasPage() {
                   </div>
                 </section>
 
-                {/* Sección: Administrativo */}
                 <section className="pt-4 border-t border-slate-200/70">
                   <h2 className="text-base font-semibold text-slate-700 mb-3">Administrativo</h2>
                   <div className="grid sm:grid-cols-2 gap-4">
@@ -473,7 +470,6 @@ export default function HistoriasClinicasPage() {
                   </div>
                 </section>
 
-                {/* Sección: Archivo */}
                 <section className="pt-4 border-t border-slate-200/70">
                   <h2 className="text-base font-semibold text-slate-700 mb-3">Archivo adjunto (opcional)</h2>
                   <div className="grid sm:grid-cols-2 gap-4 items-center">
@@ -491,7 +487,6 @@ export default function HistoriasClinicasPage() {
                 </section>
               </div>
 
-              {/* Footer acciones sticky */}
               <div className="sticky bottom-0 mt-8 -mx-6 px-6 py-4 bg-gradient-to-t from-white to-white/60 border-t border-slate-200/60 rounded-b-2xl flex flex-col sm:flex-row gap-3 justify-end">
                 <button
                   type="button"

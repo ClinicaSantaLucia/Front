@@ -573,15 +573,28 @@ export default function BuscadorHistoriasPage() {
                   </p>
 
                   <p>
-                    <strong>Tipo Doc:</strong>
-                    {modoEdicion ? (
-                      <input
-                        value={detalleEditable?.document_type || ""}
-                        onChange={(e) => setDetalleEditable((prev: any) => ({ ...prev, document_type: e.target.value }))}
-                        className="w-full border border-gray-300 rounded px-3 py-2 mt-2 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                      />
-                    ) : detalle.document_type}
-                  </p>
+  <strong>Tipo Doc:</strong>
+  {modoEdicion ? (
+    <select
+      value={detalleEditable?.document_type || ""}
+      onChange={(e) =>
+        setDetalleEditable((prev: any) => ({
+          ...prev,
+          document_type: e.target.value,
+        }))
+      }
+      className="w-full border border-gray-300 rounded px-3 py-2 mt-2 focus:outline-none focus:ring-2 focus:ring-sky-500"
+    >
+      <option value="">Seleccionar</option>
+      <option value="DNI">DNI</option>
+      <option value="PASAPORTE">Pasaporte</option>
+      <option value="CARNET EXT">Carnet de Extranjería</option>
+    </select>
+  ) : (
+    detalle.document_type
+  )}
+</p>
+
 
                   <p>
                     <strong>Doc N°:</strong>

@@ -257,7 +257,7 @@ export default function HistoriasClinicasPage() {
                       >
                         <option value="DNI">DNI</option>
                         <option value="PASAPORTE">PASAPORTE</option>
-                        <option value="CARNET EXT">CARNET EXT</option>
+                        <option value="CARNET_EXT">CARNET EXT</option>
                       </select>
                     </div>
 

@@ -277,7 +277,7 @@ export default function BuscadorHistoriasPage() {
               <option value="">Tipo de documento</option>
               <option value="DNI">DNI</option>
               <option value="PASAPORTE">Pasaporte</option>
-              <option value="CARNET EXT">Carnet de Extranjería</option>
+              <option value="CARNET_EXT">Carnet de Extranjería</option>
             </select>
 
             <input name="account_number" placeholder="N° Cuenta" value={filtros.account_number}
@@ -588,13 +588,12 @@ export default function BuscadorHistoriasPage() {
       <option value="">Seleccionar</option>
       <option value="DNI">DNI</option>
       <option value="PASAPORTE">Pasaporte</option>
-      <option value="CARNET EXT">Carnet de Extranjería</option>
+      <option value="CARNET_EXT">Carnet de Extranjería</option>
     </select>
   ) : (
     detalle.document_type
   )}
 </p>
-
 
                   <p>
                     <strong>Doc N°:</strong>

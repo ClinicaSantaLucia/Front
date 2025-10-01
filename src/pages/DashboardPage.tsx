@@ -15,7 +15,7 @@ import ByDoctorStacked from "../components/dashboard/ByDoctorStacked"
 import SpecialtyShareBar from "../components/dashboard/SpecialtyShareBar"
 import ProceduresPareto from "../components/dashboard/ProceduresPareto"
 import ProcedureTrend from "../components/dashboard/ProcedureTrend"
-import { pct, mom, pareto, sumByMonth, countByMonth } from "../utils/metrics"
+import { pct, mom, pareto,  countByMonth } from "../utils/metrics"
 import { monthLabel, titleCase } from "../utils/format"
 
 const databaseId = import.meta.env.VITE_APPWRITE_DATABASE_ID

@@ -292,18 +292,43 @@ export default function HistoriasClinicasPage() {
         const uploaded = await storage.createFile(bucket, ID.unique(), form.pdf)
         pdfFileId = uploaded.$id
       }
+const doctor_last_clean = (form.doctor_last || "").toString().trim().replace(/\s+/g, " ")
+const { pdf, cie10: _omitCIE10, ...formWithoutPdf } = form
 
-      const doctor_last_clean = (form.doctor_last || "").toString().trim().replace(/\s+/g, " ")
-      const { pdf, cie10: _omitCIE10, ...formWithoutPdf } = form
+const ingresoISO = form.admission_date ? `${form.admission_date}T00:00:00.000Z` : ""
+const altaISO    = form.discharge_date ? `${form.discharge_date}T00:00:00.000Z` : ""
 
-      await databases.createDocument(db, collection, ID.unique(), {
-        ...formWithoutPdf,
-        doctor_last: doctor_last_clean,
-        created_by: user?.user_id,
-        created_at: new Date().toISOString(),
-        pdf_file_id: pdfFileId || undefined,
-        amount: isFinite(parseFloat(form.amount || "0")) ? parseFloat(form.amount || "0") : 0,
-      })
+if (!form.especialidad || !form.especialidad.trim()) {
+  toast.error("La especialidad es obligatoria")
+  setLoading(false)
+  return
+}
+
+const MESES_ES = [
+  "Enero","Febrero","Marzo","Abril","Mayo","Junio",
+  "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"
+]
+
+let yearNum: number | undefined
+let monthEnum: string | undefined
+if (ingresoISO) {
+  const d = new Date(ingresoISO)
+  yearNum   = d.getUTCFullYear()          
+  monthEnum = MESES_ES[d.getUTCMonth()]    
+}
+
+await databases.createDocument(db, collection, ID.unique(), {
+  ...formWithoutPdf,
+  admission_date: ingresoISO,
+  discharge_date: altaISO,
+  ...(yearNum   !== undefined ? { year:  yearNum }  : {}),
+  ...(monthEnum !== undefined ? { month: monthEnum } : {}),
+  doctor_last: doctor_last_clean,
+  created_by: user?.user_id,
+  created_at: new Date().toISOString(),
+  pdf_file_id: pdfFileId || undefined,
+  amount: isFinite(parseFloat(form.amount || "0")) ? parseFloat(form.amount || "0") : 0,
+})
 
       limpiarFormulario()
       setSuccess(true)

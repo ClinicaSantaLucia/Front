@@ -823,21 +823,48 @@ export default function BuscadorHistoriasPage() {
                   {modoEdicion && (
                     <Button
                       onClick={async () => {
+
+
+                        
                         try {
                           const limpio: any = limpiarDocumento({ ...detalleEditable })
+                        
                           if (!limpio.discharge_date && detalle?.discharge_date) {
                             limpio.discharge_date = detalle.discharge_date
                           }
+                        
                           if (limpio.admission_date && limpio.discharge_date &&
                               new Date(limpio.discharge_date) < new Date(limpio.admission_date)) {
                             toast.error("La fecha de alta no puede ser anterior a la fecha de ingreso.")
                             return
                           }
-                          if (limpio.admission_date) {
-                            const d = new Date(limpio.admission_date)
+                        
+                          const MESES_ES = [
+                            "Enero","Febrero","Marzo","Abril","Mayo","Junio",
+                            "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"
+                          ]
+                        
+                          const fechaBaseISO =
+                            limpio.admission_date ||
+                            detalleEditable?.admission_date ||
+                            detalle?.admission_date || ""
+                        
+                          if (fechaBaseISO) {
+                            const d = new Date(fechaBaseISO)
                             limpio.year = d.getUTCFullYear()
-                            limpio.month = d.getUTCMonth() + 1
+                            limpio.month = MESES_ES[d.getUTCMonth()]
+                          } else {
+                            const m = (limpio.month ?? "").toString().trim()
+                            const matchNum = m.match(/^0?([1-9])$|^(1[0-2])$/)
+                            if (matchNum) {
+                              const idx = (parseInt(matchNum[1] || matchNum[2], 10) - 1)
+                              limpio.month = MESES_ES[idx]
+                            } else if (!MESES_ES.includes(m)) {
+                              delete limpio.month
+                              delete limpio.year
+                            }
                           }
+                        
                           await databases.updateDocument(databaseId, collectionId, detalleEditable.$id, limpio)
                           toast.success("Historia clínica actualizada correctamente.")
                           setDetalle(null)
@@ -846,6 +873,7 @@ export default function BuscadorHistoriasPage() {
                         } catch {
                           toast.error("Error al guardar cambios.")
                         }
+                        
                       }}
                       className="bg-sky-600 hover:bg-sky-700 text-white"
                     >

@@ -16,7 +16,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT
 
 function limpiarDocumento(doc: any) {
   const camposValidos = [
-    "year","month","gender","record_number","admission_date","discharge_date","doctor_first","doctor_last","hc",
+    "year","month","gender","record_number","admission_date","discharge_date","doctor_first","doctor_last",
     "account_number","operation","correlative","observations","condition","created_by","pdf_file_id","ocr_image_id",
     "ocr_text","created_at","document_type","patient_first_name","patient_last_name","amount","document_number",
     "motivo","descripcion","especialidad"
@@ -130,7 +130,6 @@ export default function BuscadorHistoriasPage() {
       addEq("especialidad", filtros.especialidad)
 
       queries.push(sortOrder === "desc" ? Query.orderDesc("admission_date") : Query.orderAsc("admission_date"))
-
       queries.push(Query.limit(limit))
       queries.push(Query.offset(offset))
 
@@ -161,7 +160,7 @@ export default function BuscadorHistoriasPage() {
       "Especialidad": r.especialidad || "",
       "Documento Tipo": r.document_type || "",
       "Documento N°": r.document_number || "",
-      "HC": r.hc || "",
+      "HC": r.record_number || "",
       "N° Cuenta": r.account_number || "",
       "Cirugía": r.operation || "",
       "Sexo": r.gender || "",
@@ -452,7 +451,7 @@ export default function BuscadorHistoriasPage() {
             <p><strong>Médico:</strong> {r.doctor_first} {r.doctor_last}</p>
             <p><strong>Especialidad:</strong> {r.especialidad}</p>
             <p><strong>Documento:</strong> {r.document_type} {r.document_number}</p>
-            <p><strong>HC:</strong> {r.hc}</p>
+            <p><strong>HC:</strong> {r.record_number}</p>
             <p><strong>Cuenta:</strong> {r.account_number}</p>
             <p><strong>Cirugía:</strong> {r.operation}</p>
             <p><strong>Sexo:</strong> {r.gender}</p>
@@ -565,35 +564,35 @@ export default function BuscadorHistoriasPage() {
                     <strong>Código HC:</strong>
                     {modoEdicion ? (
                       <input
-                        value={detalleEditable?.hc || ""}
-                        onChange={(e) => setDetalleEditable((prev: any) => ({ ...prev, hc: e.target.value }))}
+                        value={detalleEditable?.record_number || ""}
+                        onChange={(e) => setDetalleEditable((prev: any) => ({ ...prev, record_number: e.target.value }))}
                         className="w-full border border-gray-300 rounded px-3 py-2 mt-2 focus:outline-none focus:ring-2 focus:ring-sky-500"
                       />
-                    ) : detalle.hc}
+                    ) : detalle.record_number}
                   </p>
 
                   <p>
-  <strong>Tipo Doc:</strong>
-  {modoEdicion ? (
-    <select
-      value={detalleEditable?.document_type || ""}
-      onChange={(e) =>
-        setDetalleEditable((prev: any) => ({
-          ...prev,
-          document_type: e.target.value,
-        }))
-      }
-      className="w-full border border-gray-300 rounded px-3 py-2 mt-2 focus:outline-none focus:ring-2 focus:ring-sky-500"
-    >
-      <option value="">Seleccionar</option>
-      <option value="DNI">DNI</option>
-      <option value="PASAPORTE">Pasaporte</option>
-      <option value="CARNET_EXT">Carnet de Extranjería</option>
-    </select>
-  ) : (
-    detalle.document_type
-  )}
-</p>
+                    <strong>Tipo Doc:</strong>
+                    {modoEdicion ? (
+                      <select
+                        value={detalleEditable?.document_type || ""}
+                        onChange={(e) =>
+                          setDetalleEditable((prev: any) => ({
+                            ...prev,
+                            document_type: e.target.value,
+                          }))
+                        }
+                        className="w-full border border-gray-300 rounded px-3 py-2 mt-2 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      >
+                        <option value="">Seleccionar</option>
+                        <option value="DNI">DNI</option>
+                        <option value="PASAPORTE">Pasaporte</option>
+                        <option value="CARNET_EXT">Carnet de Extranjería</option>
+                      </select>
+                    ) : (
+                      detalle.document_type
+                    )}
+                  </p>
 
                   <p>
                     <strong>Doc N°:</strong>
@@ -606,8 +605,44 @@ export default function BuscadorHistoriasPage() {
                     ) : detalle.document_number}
                   </p>
 
-                  <p><strong>Ingreso:</strong> {detalle.admission_date?.split("T")[0]}</p>
-                  <p><strong>Alta:</strong> {detalle.discharge_date?.split("T")[0]}</p>
+                  <p>
+                    <strong>Ingreso:</strong>
+                    {modoEdicion ? (
+                      <input
+                        type="date"
+                        value={(detalleEditable?.admission_date || "").slice(0,10)}
+                        onChange={(e) =>
+                          setDetalleEditable((prev: any) => ({
+                            ...prev,
+                            admission_date: e.target.value ? `${e.target.value}T00:00:00.000Z` : ""
+                          }))
+                        }
+                        className="w-full border border-gray-300 rounded px-3 py-2 mt-2 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      />
+                    ) : (
+                      detalle.admission_date?.split("T")[0]
+                    )}
+                  </p>
+
+                  <p>
+                    <strong>Alta:</strong>
+                    {modoEdicion ? (
+                      <input
+                        type="date"
+                        min={(detalleEditable?.admission_date || "").slice(0,10)}
+                        value={(detalleEditable?.discharge_date || "").slice(0,10)}
+                        onChange={(e) =>
+                          setDetalleEditable((prev: any) => ({
+                            ...prev,
+                            discharge_date: e.target.value ? `${e.target.value}T00:00:00.000Z` : ""
+                          }))
+                        }
+                        className="w-full border border-gray-300 rounded px-3 py-2 mt-2 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      />
+                    ) : (
+                      detalle.discharge_date?.split("T")[0]
+                    )}
+                  </p>
 
                   <p>
                     <strong>Cirugía:</strong>
@@ -682,7 +717,20 @@ export default function BuscadorHistoriasPage() {
                     <Button
                       onClick={async () => {
                         try {
-                          const limpio = limpiarDocumento(detalleEditable)
+                          const limpio: any = limpiarDocumento({ ...detalleEditable })
+                          if (!limpio.discharge_date && detalle?.discharge_date) {
+                            limpio.discharge_date = detalle.discharge_date
+                          }
+                          if (limpio.admission_date && limpio.discharge_date &&
+                              new Date(limpio.discharge_date) < new Date(limpio.admission_date)) {
+                            toast.error("La fecha de alta no puede ser anterior a la fecha de ingreso.")
+                            return
+                          }
+                          if (limpio.admission_date) {
+                            const d = new Date(limpio.admission_date)
+                            limpio.year = d.getUTCFullYear()
+                            limpio.month = d.getUTCMonth() + 1
+                          }
                           await databases.updateDocument(databaseId, collectionId, detalleEditable.$id, limpio)
                           toast.success("Historia clínica actualizada correctamente.")
                           setDetalle(null)

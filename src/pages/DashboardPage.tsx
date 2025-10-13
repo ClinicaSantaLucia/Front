@@ -15,7 +15,7 @@ import ByDoctorStacked from "../components/dashboard/ByDoctorStacked"
 import SpecialtyShareBar from "../components/dashboard/SpecialtyShareBar"
 import ProceduresPareto from "../components/dashboard/ProceduresPareto"
 import ProcedureTrend from "../components/dashboard/ProcedureTrend"
-import { pct, mom, pareto,  countByMonth } from "../utils/metrics"
+import { pct, mom, pareto, countByMonth } from "../utils/metrics"
 import { monthLabel, titleCase } from "../utils/format"
 
 const databaseId = import.meta.env.VITE_APPWRITE_DATABASE_ID
@@ -97,6 +97,16 @@ export default function DashboardPage() {
 
   const totalHistorias = filtered.length
   const totalGlobal = docs.length
+
+  // NUEVO: total de doctores (histórico, únicos por apellidos normalizados)
+  const totalDoctores = useMemo(() => {
+    const s = new Set<string>()
+    docs.forEach((d) => {
+      const ln = (d.doctor_last || "").trim().replace(/\s+/g, " ")
+      if (ln) s.add(ln)
+    })
+    return s.size
+  }, [docs])
 
   const porAñoData = useMemo(() => {
     const map = new Map<number, number>()
@@ -223,15 +233,18 @@ export default function DashboardPage() {
     <>
       <Header />
       <div className="min-h-screen bg-white">
-        <div className="w-full px-3 md:px-5 lg:px-6 py-5">
-          <div className="flex gap-4 lg:gap-6 xl:gap-8">
-            <SidebarDashboard />
-            <main className="flex-1">
-              <div className="sticky top-16 z-30 bg-white/90 backdrop-blur border-b border-slate-200 px-3 md:px-5 py-3 flex items-center justify-between">
-                <h1 className="text-lg font-semibold text-slate-900">Dashboard</h1>
-                <div className="flex items-center gap-2">
+        <div className="w-full px-3 sm:px-4 md:px-5 lg:px-6 py-4 sm:py-5">
+          <div className="flex flex-col lg:flex-row gap-5 lg:gap-6 xl:gap-8">
+            <aside className="hidden lg:block shrink-0">
+              <SidebarDashboard />
+            </aside>
+
+            <main className="flex-1 min-w-0">
+              <div className="sticky top-16 z-30 bg-white/90 backdrop-blur border-b border-slate-200 px-3 sm:px-4 md:px-5 py-2.5 sm:py-3 flex items-center justify-between">
+                <h1 className="text-base sm:text-lg font-semibold text-slate-900">Dashboard</h1>
+                <div className="flex items-center gap-2 w-40 sm:w-auto">
                   <select
-                    className="h-9 rounded-xl border border-slate-300 bg-white px-3 text-sm"
+                    className="h-9 w-full sm:w-auto rounded-xl border border-slate-300 bg-white px-3 text-sm"
                     value={year === "all" ? "" : String(year)}
                     onChange={(e) => setYear(e.target.value ? Number(e.target.value) : "all")}
                   >
@@ -247,11 +260,11 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <section id="resumen" className="pt-6">
+              <section id="resumen" className="pt-4 sm:pt-6">
                 {loading ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 xl:gap-8">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 xl:gap-8">
                     {Array.from({ length: 4 }).map((_, i) => (
-                      <div key={i} className="bg-white border border-slate-200 rounded-2xl p-6">
+                      <div key={i} className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6">
                         <div className="h-4 w-28 bg-slate-100 rounded mb-2" />
                         <div className="h-8 w-24 bg-slate-100 rounded mb-3" />
                         <div className="h-10 w-full bg-slate-100 rounded" />
@@ -260,142 +273,176 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 xl:gap-8">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 xl:gap-8">
                       <KPIStat label="Total historias" value={totalHistorias.toLocaleString("es-PE")} delta={deltaMensual} />
                       <KPIStat label="Total histórico" value={totalGlobal.toLocaleString("es-PE")} />
+                      {/* NUEVO KPI: Total doctores históricos */}
+                      <KPIStat label="Total doctores" value={totalDoctores.toLocaleString("es-PE")} />
                     </div>
-                    <div className="mt-6">
-                      <KPISparkline data={sparkData} />
+                    <div className="mt-4 sm:mt-6 overflow-x-auto">
+                      <div className="min-w-[320px]">
+                        <KPISparkline data={sparkData} />
+                      </div>
                     </div>
                   </>
                 )}
               </section>
 
-              <section id="actividad" className="pt-10">
-                <div className="grid grid-cols-1 gap-8 xl:gap-10">
-                  <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                    <h3 className="text-base font-semibold text-slate-800 mb-2">Historias por año</h3>
-                    <YearTotalsBar data={porAñoData} />
+              <section id="actividad" className="pt-8 sm:pt-10">
+                <div className="grid grid-cols-1 gap-6 sm:gap-8 xl:gap-10">
+                  <div className="bg-white rounded-2xl border border-slate-200 p-5 md:p-6 overflow-x-auto">
+                    <h3 className="text-sm sm:text-base font-semibold text-slate-800 mb-3">Historias por año</h3>
+                    <div className="min-w-[320px]">
+                      <YearTotalsBar data={porAñoData} />
+                    </div>
                   </div>
-                  <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                    <h3 className="text-base font-semibold text-slate-800 mb-2">Historias por mes</h3>
-                    <MonthTotalsBar labels={labelsMes} values={totalsSelMonths} />
+                  <div className="bg-white rounded-2xl border border-slate-200 p-5 md:p-6 overflow-x-auto">
+                    <h3 className="text-sm sm:text-base font-semibold text-slate-800 mb-3">Historias por mes</h3>
+                    <div className="min-w-[320px]">
+                      <MonthTotalsBar labels={labelsMes} values={totalsSelMonths} />
+                    </div>
                   </div>
                 </div>
               </section>
 
-              <section id="composicion" className="pt-10">
-                <div className="grid grid-cols-1 gap-8 xl:gap-10">
-                  <div className="bg-white rounded-2xl border border-slate-200 p-6">
+              {/* COMPOSICIÓN */}
+              <section id="composicion" className="pt-8 sm:pt-10">
+                <div className="grid grid-cols-1 gap-7 sm:gap-8 xl:gap-10">
+                  <div className="bg-white rounded-2xl border border-slate-200 p-5 md:p-6">
                     <GenderPie data={generoData} />
                   </div>
-                  <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                    <TopProceduresBar data={opsList} />
+
+                  {/* Pacientes por tipo de operación – más respiro en móvil */}
+                  <div className="bg-white rounded-2xl border border-slate-200 p-5 md:p-6 overflow-x-auto">
+                    <div className="min-w-[340px] sm:min-w-0 min-h-[380px] sm:min-h-[360px]">
+                      <TopProceduresBar data={opsList} />
+                    </div>
                   </div>
-                  <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                    <SpecialtyShareBar data={specialtyData.map((x) => ({ name: x.name, value: x.value }))} />
+
+                  {/* Participación por especialidad – más alto mínimo para no apretar etiquetas */}
+                  <div className="bg-white rounded-2xl border border-slate-200 p-5 md:p-6 overflow-x-auto">
+                    <div className="min-w-[340px] sm:min-w-0 min-h-[400px] sm:min-h-[360px]">
+                      <SpecialtyShareBar data={specialtyData.map((x) => ({ name: x.name, value: x.value }))} />
+                    </div>
                   </div>
                 </div>
               </section>
 
-              <section id="medicos" className="pt-10">
-                <div className="grid grid-cols-1 gap-8 xl:gap-10">
-                  <div className="bg-white rounded-2xl border border-slate-200 p-6">
+              {/* MÉDICOS */}
+              <section id="medicos" className="pt-8 sm:pt-10">
+                <div className="grid grid-cols-1 gap-7 sm:gap-8 xl:gap-10">
+                  <div className="bg-white rounded-2xl border border-slate-200 p-5 md:p-6">
                     <TopDoctorsPie data={topDoctors} />
                   </div>
-                  <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                    <h3 className="text-base font-semibold text-slate-800 mb-2">Operaciones por doctor</h3>
-                    <ByDoctorStacked doctors={opsByDoctor.doctors} operations={opsByDoctor.operations} matrix={opsByDoctor.matrix} />
+
+                  {/* Operaciones por doctor – ancho mínimo + alto mínimo para columnas apiladas */}
+                  <div className="bg-white rounded-2xl border border-slate-200 p-5 md:p-6 overflow-x-auto">
+                    <h3 className="text-sm sm:text-base font-semibold text-slate-800 mb-3">Operaciones por doctor</h3>
+                    <div className="min-w-[420px] sm:min-w-0 min-h-[420px] sm:min-h-[380px]">
+                      <ByDoctorStacked
+                        doctors={opsByDoctor.doctors}
+                        operations={opsByDoctor.operations}
+                        matrix={opsByDoctor.matrix}
+                      />
+                    </div>
                   </div>
                 </div>
               </section>
 
-              <section id="procedimientos" className="pt-10">
-  <div className="grid grid-cols-1 gap-8 xl:gap-10">
-    <div className="bg-white rounded-2xl border border-slate-200 p-6">
-      <ProceduresPareto
-        data={paretoData.map((x) => ({ name: x.name, value: x.value }))}
-        height={520}
-      />
-    </div>
-    <div className="bg-white rounded-2xl border border-slate-200 p-6">
-      <h3 className="text-base font-semibold text-slate-800 mb-2">
-        Tendencia mensual: {topProcedure || "—"}
-      </h3>
-      <ProcedureTrend
-        months={procedureTrend.months}
-        values={procedureTrend.values}
-        height={420}
-      />
-    </div>
-  </div>
-</section>
+              {/* PROCEDIMIENTOS */}
+              <section id="procedimientos" className="pt-8 sm:pt-10">
+                <div className="grid grid-cols-1 gap-7 sm:gap-8 xl:gap-10">
+                  {/* Pareto – más espacio vertical en móvil */}
+                  <div className="bg-white rounded-2xl border border-slate-200 p-5 md:p-6 overflow-x-auto">
+                    <div className="min-w-[420px] sm:min-w-0 min-h-[520px] sm:min-h-[480px]">
+                      <ProceduresPareto
+                        data={paretoData.map((x) => ({ name: x.name, value: x.value }))}
+                        height={520}
+                      />
+                    </div>
+                  </div>
 
-              <section id="finanzas" className="pt-12">
+                  <div className="bg-white rounded-2xl border border-slate-200 p-5 md:p-6 overflow-x-auto">
+                    <h3 className="text-sm sm:text-base font-semibold text-slate-800 mb-3">
+                      Tendencia mensual: {topProcedure || "—"}
+                    </h3>
+                    <div className="min-w-[420px] sm:min-w-0 min-h-[420px] sm:min-h-[380px]">
+                      <ProcedureTrend
+                        months={procedureTrend.months}
+                        values={procedureTrend.values}
+                        height={420}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* Placeholders */}
+              <section id="finanzas" className="pt-10">
                 <div
-                  className="relative rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-slate-500 pointer-events-none select-none opacity-70"
+                  className="relative rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 sm:p-8 text-slate-500 pointer-events-none select-none opacity-70"
                   aria-disabled
                   role="region"
                 >
                   <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-transparent to-white/60" />
                   <div className="relative">
-                    <h3 className="text-base font-semibold text-slate-700 mb-2">Finanzas</h3>
+                    <h3 className="text-sm sm:text-base font-semibold text-slate-700 mb-2">Finanzas</h3>
                     <p className="text-sm">Próximamente</p>
                   </div>
                 </div>
               </section>
 
-              <section id="calidad" className="pt-8">
+              <section id="calidad" className="pt-6 sm:pt-8">
                 <div
-                  className="relative rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-slate-500 pointer-events-none select-none opacity-70"
+                  className="relative rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 sm:p-8 text-slate-500 pointer-events-none select-none opacity-70"
                   aria-disabled
                   role="region"
                 >
                   <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-transparent to-white/60" />
                   <div className="relative">
-                    <h3 className="text-base font-semibold text-slate-700 mb-2">Calidad de datos</h3>
+                    <h3 className="text-sm sm:text-base font-semibold text-slate-700 mb-2">Calidad de datos</h3>
                     <p className="text-sm">Próximamente</p>
                   </div>
                 </div>
               </section>
 
-              <section id="explorar" className="pt-8">
+              <section id="explorar" className="pt-6 sm:pt-8">
                 <div
-                  className="relative rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-slate-500 pointer-events-none select-none opacity-70"
+                  className="relative rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 sm:p-8 text-slate-500 pointer-events-none select-none opacity-70"
                   aria-disabled
                   role="region"
                 >
                   <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-transparent to-white/60" />
                   <div className="relative">
-                    <h3 className="text-base font-semibold text-slate-700 mb-2">Explorar</h3>
+                    <h3 className="text-sm sm:text-base font-semibold text-slate-700 mb-2">Explorar</h3>
                     <p className="text-sm">Próximamente</p>
                   </div>
                 </div>
               </section>
 
-              <section id="reportes" className="pt-8">
+              <section id="reportes" className="pt-6 sm:pt-8">
                 <div
-                  className="relative rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-slate-500 pointer-events-none select-none opacity-70"
+                  className="relative rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 sm:p-8 text-slate-500 pointer-events-none select-none opacity-70"
                   aria-disabled
                   role="region"
                 >
                   <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-transparent to-white/60" />
                   <div className="relative">
-                    <h3 className="text-base font-semibold text-slate-700 mb-2">Reportes</h3>
+                    <h3 className="text-sm sm:text-base font-semibold text-slate-700 mb-2">Reportes</h3>
                     <p className="text-sm">Próximamente</p>
                   </div>
                 </div>
               </section>
 
-              <section id="vistas" className="pt-8 pb-20">
+              <section id="vistas" className="pt-6 sm:pt-8 pb-24 sm:pb-20">
                 <div
-                  className="relative rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-slate-500 pointer-events-none select-none opacity-70"
+                  className="relative rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 sm:p-8 text-slate-500 pointer-events-none select-none opacity-70"
                   aria-disabled
                   role="region"
                 >
                   <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-transparent to-white/60" />
                   <div className="relative">
-                    <h3 className="text-base font-semibold text-slate-700 mb-2">Vistas guardadas</h3>
+                    <h3 className="text-sm sm:text-base font-semibold text-slate-700 mb-2">Vistas guardadas</h3>
                     <p className="text-sm">Próximamente</p>
                   </div>
                 </div>
